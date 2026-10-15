@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../frontend/payment/controllers/payment_controller.dart';
 import '../theme/app_colors.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
@@ -6,8 +7,10 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onMenuTap;
   final ValueChanged<String>? onSearchChanged;
   final TextEditingController? searchController;
-  final String balanceAmount;
+  final String? balanceAmount;
   final VoidCallback? onBalanceTap;
+  final bool? isBalanceVisible;
+  final ValueChanged<bool>? onVisibilityChanged;
 
   const CustomAppBar({
     super.key,
@@ -15,8 +18,10 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.onMenuTap,
     this.onSearchChanged,
     this.searchController,
-    this.balanceAmount = '৳ 45,000.00',
+    this.balanceAmount,
     this.onBalanceTap,
+    this.isBalanceVisible,
+    this.onVisibilityChanged,
   });
 
   @override
@@ -27,12 +32,14 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _CustomAppBarState extends State<CustomAppBar> {
-  bool _isBalanceVisible = false;
+  final PaymentController _payment = PaymentController.instance;
+
+  bool get _isBalanceVisible =>
+      widget.isBalanceVisible ?? _payment.isBalanceVisible;
 
   void _toggleBalance() {
-    setState(() {
-      _isBalanceVisible = !_isBalanceVisible;
-    });
+    _payment.toggleBalanceVisibility();
+    widget.onVisibilityChanged?.call(_payment.isBalanceVisible);
     widget.onBalanceTap?.call();
   }
 
@@ -214,96 +221,102 @@ class _CustomAppBarState extends State<CustomAppBar> {
                         const SizedBox(height: kBarGap),
 
                         // Balance Bar (height: 22.0, expands on tap, border radius: kItemRadius)
-                        InkWell(
-                          onTap: _toggleBalance,
-                          borderRadius: BorderRadius.circular(kItemRadius),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            height: _isBalanceVisible
-                                ? 28.0
-                                : kBalanceBarHeight,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8.0,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.cloudDancer,
+                        ListenableBuilder(
+                          listenable: _payment,
+                          builder: (context, _) {
+                            final effectiveBalance =
+                                widget.balanceAmount ?? _payment.unmaskedActiveBalance;
+
+                            return InkWell(
+                              onTap: _toggleBalance,
                               borderRadius: BorderRadius.circular(kItemRadius),
-                              border: Border.all(
-                                color: _isBalanceVisible
-                                    ? AppColors.emeraldGreen
-                                    : AppColors.royalBlue.withValues(
-                                        alpha: 0.28,
-                                      ),
-                                width: 1.0,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: _isBalanceVisible
-                                      ? AppColors.emeraldGreen.withValues(
-                                          alpha: 0.08,
-                                        )
-                                      : AppColors.royalBlue.withValues(
-                                          alpha: 0.04,
-                                        ),
-                                  blurRadius: 3,
-                                  offset: const Offset(0, 1),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeInOut,
+                                height: _isBalanceVisible ? 28.0 : kBalanceBarHeight,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8.0,
                                 ),
-                              ],
-                            ),
-                            child: _isBalanceVisible
-                                ? Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(
-                                            Icons.account_balance_wallet,
-                                            size: 13,
-                                            color: AppColors.emeraldGreen,
+                                decoration: BoxDecoration(
+                                  color: AppColors.cloudDancer,
+                                  borderRadius: BorderRadius.circular(kItemRadius),
+                                  border: Border.all(
+                                    color: _isBalanceVisible
+                                        ? AppColors.emeraldGreen
+                                        : AppColors.royalBlue.withValues(
+                                            alpha: 0.28,
                                           ),
-                                          const SizedBox(width: 5),
+                                    width: 1.0,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _isBalanceVisible
+                                          ? AppColors.emeraldGreen.withValues(
+                                              alpha: 0.08,
+                                            )
+                                          : AppColors.royalBlue.withValues(
+                                              alpha: 0.04,
+                                            ),
+                                      blurRadius: 3,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                child: _isBalanceVisible
+                                    ? Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.account_balance_wallet,
+                                                size: 13,
+                                                color: AppColors.emeraldGreen,
+                                              ),
+                                              const SizedBox(width: 5),
+                                              Text(
+                                                effectiveBalance,
+                                                style: const TextStyle(
+                                                  color: AppColors.emeraldGreen,
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  letterSpacing: 0.2,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const Icon(
+                                            Icons.visibility_off_outlined,
+                                            size: 13,
+                                            color: AppColors.royalBlue,
+                                          ),
+                                        ],
+                                      )
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: const [
+                                          Icon(
+                                            Icons.touch_app_outlined,
+                                            size: 12,
+                                            color: AppColors.royalBlue,
+                                          ),
+                                          SizedBox(width: 4),
                                           Text(
-                                            widget.balanceAmount,
-                                            style: const TextStyle(
-                                              color: AppColors.emeraldGreen,
-                                              fontSize: 11.5,
-                                              fontWeight: FontWeight.w700,
-                                              letterSpacing: 0.2,
+                                            'Tap to see Balance',
+                                            style: TextStyle(
+                                              color: AppColors.royalBlue,
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w600,
+                                              letterSpacing: 0.1,
                                             ),
                                           ),
                                         ],
                                       ),
-                                      const Icon(
-                                        Icons.visibility_off_outlined,
-                                        size: 13,
-                                        color: AppColors.royalBlue,
-                                      ),
-                                    ],
-                                  )
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(
-                                        Icons.touch_app_outlined,
-                                        size: 12,
-                                        color: AppColors.royalBlue,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Tap to see Balance',
-                                        style: TextStyle(
-                                          color: AppColors.royalBlue,
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 0.1,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                          ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -316,7 +329,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
                     height: kActionHeight,
                     decoration: BoxDecoration(
                       color: AppColors.cloudDancer,
-                      borderRadius: BorderRadius.circular(kItemRadius * 2),
+                      borderRadius: BorderRadius.circular(kItemRadius * 2.3),
                       border: Border.all(
                         color: AppColors.royalBlue.withValues(alpha: 0.28),
                         width: 1.2,
