@@ -31,14 +31,15 @@ class CustomBottomNavigationBar extends StatelessWidget {
           type: BottomNavigationBarType.fixed,
           backgroundColor: AppColors.cloudDancer,
           selectedItemColor: AppColors.royalBlue,
-          unselectedItemColor: AppColors.royalBlue.withValues(alpha: 0.5),
+          unselectedItemColor: AppColors.royalBlue.withValues(alpha: 0.65),
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 12,
           ),
+          // Same size as the selected label so the bar doesn't "jump" on tap.
           unselectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w500,
-            fontSize: 11,
+            fontSize: 12,
           ),
           elevation: 0,
           items: const [
@@ -55,7 +56,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
             // 3. Scan
             BottomNavigationBarItem(
               icon: Icon(Icons.qr_code_scanner),
-              label: 'Scan',
+              label: 'Scan QR',
             ),
             // 4. Notice
             BottomNavigationBarItem(
