@@ -6,10 +6,14 @@ class HomeView extends StatefulWidget {
   final VoidCallback? onNavigateToNotice;
   final VoidCallback? onNavigateToCrChecker;
 
+  /// Shown in the greeting. Falls back to "Welcome" when null.
+  final String? userName;
+
   const HomeView({
     super.key,
     this.onNavigateToNotice,
     this.onNavigateToCrChecker,
+    this.userName,
   });
 
   @override
@@ -127,6 +131,45 @@ class _HomeViewState extends State<HomeView> {
   double get _progressPercent =>
       _checklist.isEmpty ? 0.0 : _completedCount / _checklist.length;
 
+  /// Index of the first unfinished item, or -1 when everything is done.
+  int get _nextIndex => _checklist.indexWhere((item) => !item.isCompleted);
+
+  /// Unfinished items first, then completed ones (original order is kept
+  /// inside each group). Collapsed view shows only the first 3.
+  List<int> get _visibleIndexes {
+    final pending = <int>[];
+    final done = <int>[];
+    for (var i = 0; i < _checklist.length; i++) {
+      (_checklist[i].isCompleted ? done : pending).add(i);
+    }
+    final ordered = [...pending, ...done];
+    return _isChecklistExpanded ? ordered : ordered.take(3).toList();
+  }
+
+  /// Protection status shown in the greeting badge. Driven by real progress so
+  /// the app never claims "Protected" while most checks are still open.
+  ({String label, IconData icon, Color color}) get _status {
+    if (_checklist.isNotEmpty && _completedCount == _checklist.length) {
+      return (
+        label: 'Fully Protected',
+        icon: Icons.verified_user_rounded,
+        color: AppColors.emeraldGreen,
+      );
+    }
+    if (_progressPercent >= 0.5) {
+      return (
+        label: 'Partially Protected',
+        icon: Icons.shield_outlined,
+        color: AppColors.royalBlue,
+      );
+    }
+    return (
+      label: 'Action Needed',
+      icon: Icons.warning_amber_rounded,
+      color: AppColors.crimsonRed,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -174,58 +217,37 @@ class _HomeViewState extends State<HomeView> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Hi, User',
-                      style: TextStyle(
-                        color: AppColors.royalBlue,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Your Overseas Protection Dashboard',
-                      style: TextStyle(
-                        color: AppColors.royalBlue.withValues(alpha: 0.65),
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.royalBlue.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: AppColors.royalBlue.withValues(alpha: 0.25),
-                      width: 1.0,
-                    ),
-                  ),
-                  child: Row(
-                    children: const [
-                      Icon(
-                        Icons.shield_outlined,
-                        color: AppColors.royalBlue,
-                        size: 15,
-                      ),
-                      SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        'Protected',
-                        style: TextStyle(
+                        widget.userName == null
+                            ? 'Welcome'
+                            : 'Hi, ${widget.userName}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
                           color: AppColors.royalBlue,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Your Overseas Protection Dashboard',
+                        style: TextStyle(
+                          color: AppColors.royalBlueMuted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 10),
+                _buildStatusBadge(),
               ],
             ),
           ),
@@ -244,6 +266,38 @@ class _HomeViewState extends State<HomeView> {
           _buildQuickFeaturesGrid(),
 
           const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  // --- Status badge (greeting header) ---
+  Widget _buildStatusBadge() {
+    final status = _status;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: status.color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: status.color.withValues(alpha: 0.4),
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(status.icon, color: status.color, size: 16),
+          const SizedBox(width: 4),
+          Text(
+            status.label,
+            style: TextStyle(
+              color: status.color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -294,7 +348,7 @@ class _HomeViewState extends State<HomeView> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Dynamic summary badge (e.g. "3/8 Verified")
+                      // Dynamic summary badge (e.g. "3/8 Done")
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
                         padding: const EdgeInsets.symmetric(
@@ -315,7 +369,7 @@ class _HomeViewState extends State<HomeView> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.verified_rounded,
+                              Icons.task_alt_rounded,
                               size: 13,
                               color: _completedCount == _checklist.length
                                   ? AppColors.cloudDancer
@@ -323,7 +377,7 @@ class _HomeViewState extends State<HomeView> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '$_completedCount/${_checklist.length} Verified',
+                              '$_completedCount/${_checklist.length} Done',
                               style: TextStyle(
                                 color: _completedCount == _checklist.length
                                     ? AppColors.cloudDancer
@@ -344,10 +398,10 @@ class _HomeViewState extends State<HomeView> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Tap to inspect legal registry verification pipeline',
+                          'Check your company and documents before you fly',
                           style: TextStyle(
-                            color: AppColors.royalBlue.withValues(alpha: 0.65),
-                            fontSize: 11.5,
+                            color: AppColors.royalBlueMuted,
+                            fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -383,66 +437,59 @@ class _HomeViewState extends State<HomeView> {
             color: Color(0x221A4B9C),
           ),
 
-          // Verification Criteria Preview (Option A)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 6.0),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: const [
-                _VerificationCriterionChip(
-                  label: 'CR Status: Active & Verified',
-                ),
-                _VerificationCriterionChip(
-                  label: 'Work Visa: Approved',
-                ),
-                _VerificationCriterionChip(
-                  label: 'BMET Smart Card: Linked',
-                ),
-              ],
-            ),
-          ),
-
           // Dynamic Progress Bar & Ratio
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            padding: const EdgeInsets.fromLTRB(16.0, 14.0, 16.0, 8.0),
+            child: Semantics(
+              label: 'Departure readiness',
+              // toInt() floors on purpose: never overstate readiness.
+              value: '${(_progressPercent * 100).toInt()} percent',
+              child: ExcludeSemantics(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Verification Readiness',
-                      style: TextStyle(
-                        color: AppColors.royalBlue.withValues(alpha: 0.8),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Departure Readiness',
+                          style: TextStyle(
+                            color: AppColors.royalBlueMuted,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          '${(_progressPercent * 100).toInt()}%',
+                          style: const TextStyle(
+                            color: AppColors.royalBlue,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '${(_progressPercent * 100).toInt()}%',
-                      style: const TextStyle(
-                        color: AppColors.royalBlue,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween<double>(end: _progressPercent),
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.easeOut,
+                        builder: (context, value, _) => LinearProgressIndicator(
+                          value: value,
+                          minHeight: 7,
+                          backgroundColor:
+                              AppColors.royalBlue.withValues(alpha: 0.12),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.emeraldGreen,
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: _progressPercent,
-                    minHeight: 7,
-                    backgroundColor: AppColors.royalBlue.withValues(alpha: 0.12),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      AppColors.emeraldGreen,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
 
@@ -451,11 +498,8 @@ class _HomeViewState extends State<HomeView> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               children: [
-                // Render items (either top 3 or all 8 based on expansion state)
-                for (int i = 0;
-                    i < (_isChecklistExpanded ? _checklist.length : 3);
-                    i++)
-                  _buildChecklistRow(i),
+                // Pending items first; top 3 when collapsed, all when expanded.
+                for (final i in _visibleIndexes) _buildChecklistRow(i),
               ],
             ),
           ),
@@ -495,86 +539,110 @@ class _HomeViewState extends State<HomeView> {
 
   Widget _buildChecklistRow(int index) {
     final item = _checklist[index];
+    final isNext = index == _nextIndex;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: InkWell(
+      child: Semantics(
+        button: true,
+        checked: item.isCompleted,
+        label: '${item.title}. ${item.subtitle}',
+        hint: 'Double tap to mark as done',
         onTap: () => _toggleChecklistItem(index),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: item.isCompleted
-                ? AppColors.emeraldGreen.withValues(alpha: 0.06)
-                : AppColors.cloudDancer,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: () => _toggleChecklistItem(index),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
               color: item.isCompleted
-                  ? AppColors.emeraldGreen.withValues(alpha: 0.35)
-                  : AppColors.royalBlue.withValues(alpha: 0.16),
-              width: 1.0,
+                  ? AppColors.emeraldGreen.withValues(alpha: 0.06)
+                  : AppColors.cloudDancer,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: item.isCompleted
+                    ? AppColors.emeraldGreen.withValues(alpha: 0.35)
+                    : isNext
+                        ? AppColors.royalBlue.withValues(alpha: 0.5)
+                        : AppColors.royalBlue.withValues(alpha: 0.16),
+                width: 1.0,
+              ),
             ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Checkbox icon
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 20,
-                height: 20,
-                margin: const EdgeInsets.only(top: 1),
-                decoration: BoxDecoration(
-                  color: item.isCompleted
-                      ? AppColors.emeraldGreen
-                      : AppColors.cloudDancer,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Checkbox icon
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 20,
+                  height: 20,
+                  margin: const EdgeInsets.only(top: 1),
+                  decoration: BoxDecoration(
                     color: item.isCompleted
                         ? AppColors.emeraldGreen
-                        : AppColors.royalBlue.withValues(alpha: 0.5),
-                    width: 1.5,
+                        : AppColors.cloudDancer,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: item.isCompleted
+                          ? AppColors.emeraldGreen
+                          : AppColors.royalBlue.withValues(alpha: 0.5),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: item.isCompleted
+                      ? const Icon(
+                          Icons.check,
+                          size: 14,
+                          color: AppColors.cloudDancer,
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                // Checklist text (no strikethrough: the green check already
+                // says "done", and crossed-out text reads as "dismissed").
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (isNext) ...[
+                        const Text(
+                          'NEXT STEP',
+                          style: TextStyle(
+                            color: AppColors.royalBlue,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                      ],
+                      Text(
+                        item.title,
+                        style: TextStyle(
+                          color: item.isCompleted
+                              ? AppColors.royalBlueMuted
+                              : AppColors.royalBlue,
+                          fontSize: 13,
+                          fontWeight: item.isCompleted
+                              ? FontWeight.w500
+                              : FontWeight.w700,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        item.subtitle,
+                        style: const TextStyle(
+                          color: AppColors.royalBlueMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: item.isCompleted
-                    ? const Icon(
-                        Icons.check,
-                        size: 14,
-                        color: AppColors.cloudDancer,
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 10),
-              // Checklist text
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      style: TextStyle(
-                        color: AppColors.royalBlue,
-                        fontSize: 12.5,
-                        fontWeight: item.isCompleted
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                        decoration: item.isCompleted
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
-                        decorationColor: AppColors.royalBlue.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.subtitle,
-                      style: TextStyle(
-                        color: AppColors.royalBlue.withValues(alpha: 0.55),
-                        fontSize: 10.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -910,46 +978,6 @@ class _HomeViewState extends State<HomeView> {
   }
 }
 
-class _VerificationCriterionChip extends StatelessWidget {
-  final String label;
-
-  const _VerificationCriterionChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.cloudDancer,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.emeraldGreen.withValues(alpha: 0.4),
-          width: 1.0,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.check_circle_rounded,
-            size: 13,
-            color: AppColors.emeraldGreen,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.royalBlue,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _QuickFeatureCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -977,7 +1005,9 @@ class _QuickFeatureCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        height: 92,
+        // minHeight (not a fixed height) so larger fonts never overflow.
+        alignment: Alignment.center,
+        constraints: const BoxConstraints(minHeight: 92),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: backgroundColor ?? AppColors.cloudDancer,
@@ -1017,7 +1047,7 @@ class _QuickFeatureCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: textColor,
-                fontSize: 11.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),

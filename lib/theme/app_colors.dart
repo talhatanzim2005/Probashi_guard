@@ -14,4 +14,14 @@ abstract final class AppColors {
 
   /// Critical friction, warnings, insufficient balance, failures, destructive actions (#D32F2F).
   static const Color crimsonRed = Color(0xFFD32F2F);
+
+  // ---------------------------------------------------------------------------
+  // Tints of the palette (not new colors).
+  // ---------------------------------------------------------------------------
+
+  /// Royal Blue at 75% opacity, for secondary / helper text.
+  /// Keeps roughly 4.5:1 contrast on [cloudDancer] so it stays readable
+  /// outdoors. Do not go lighter than this for text; use it instead of
+  /// scattering `royalBlue.withValues(alpha: ...)` calls for text colors.
+  static const Color royalBlueMuted = Color(0xBF1A4B9C);
 }
