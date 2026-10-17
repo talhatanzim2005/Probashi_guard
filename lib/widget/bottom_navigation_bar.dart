@@ -26,9 +26,9 @@ class CustomBottomNavigationBar extends StatelessWidget {
       label: 'Payment',
     ),
     _NavItemData(
-      icon: Icons.qr_code_scanner_rounded,
-      activeIcon: Icons.qr_code_scanner_rounded,
-      label: 'Scan QR',
+      icon: Icons.document_scanner_outlined,
+      activeIcon: Icons.document_scanner_rounded,
+      label: 'Scan',
     ),
     _NavItemData(
       icon: Icons.notifications_none_rounded,

@@ -6,6 +6,9 @@ class HomeView extends StatefulWidget {
   final VoidCallback? onNavigateToNotice;
   final VoidCallback? onNavigateToCrChecker;
 
+  /// Opens the vault of documents already scanned on this device.
+  final VoidCallback? onOpenSavedDocuments;
+
   /// Shown in the greeting. Falls back to "Welcome" when null.
   final String? userName;
 
@@ -13,6 +16,7 @@ class HomeView extends StatefulWidget {
     super.key,
     this.onNavigateToNotice,
     this.onNavigateToCrChecker,
+    this.onOpenSavedDocuments,
     this.userName,
   });
 
@@ -943,15 +947,7 @@ class _HomeViewState extends State<HomeView> {
                 label: 'Saved Documents',
                 borderColor: AppColors.royalBlue.withValues(alpha: 0.22),
                 textColor: AppColors.royalBlue,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Opening Saved Documents vault...'),
-                      backgroundColor: AppColors.royalBlue,
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-                },
+                onTap: widget.onOpenSavedDocuments ?? () {},
               ),
             ),
             const SizedBox(width: 12),

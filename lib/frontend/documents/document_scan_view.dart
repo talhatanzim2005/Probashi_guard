@@ -198,6 +198,16 @@ class _DocumentScanViewState extends State<DocumentScanView>
             ? 'Camera permission is off. Allow camera access in Settings, or choose a photo from the gallery.'
             : 'Could not start the camera. Choose a photo from the gallery instead.';
       });
+    } catch (e) {
+      // The plugin can fail in other ways (no camera support on this platform,
+      // a missing plugin registration). Without this the placeholder would
+      // spin forever instead of telling the user what to do.
+      debugPrint('[DocumentScanView] Camera unavailable: $e');
+      if (!mounted) return;
+      setState(() {
+        _cameraError =
+            'The camera is not available on this device. Choose a photo from the gallery instead.';
+      });
     }
   }
 

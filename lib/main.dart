@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'frontend/crChecker/cr_checker_view.dart';
+import 'frontend/documents/document_scan_view.dart';
+import 'frontend/documents/saved_documents_portal_view.dart';
 import 'frontend/home/home_view.dart';
 import 'frontend/menu/app_menu_drawer.dart';
 import 'frontend/notice/notice_view.dart';
-import 'frontend/ocr/ocr_view.dart';
 import 'frontend/payment/controllers/payment_controller.dart';
 import 'frontend/payment/payment_view.dart';
 import 'frontend/profile/controllers/profile_controller.dart';
@@ -12,8 +14,35 @@ import 'theme/app_colors.dart';
 import 'widget/app_bar.dart';
 import 'widget/bottom_navigation_bar.dart';
 
-void main() {
+// Override for another project with:
+//   flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_KEY=...
+const _supabaseUrl = String.fromEnvironment(
+  'SUPABASE_URL',
+  defaultValue: 'https://xfwxiawapksepskcevwe.supabase.co',
+);
+const _supabaseKey = String.fromEnvironment(
+  'SUPABASE_KEY',
+  defaultValue: 'sb_publishable_j189-L73p34K9QMvj-2Msg_dTYOWhIh',
+);
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await _initSupabase();
   runApp(const ProbashiGuardApp());
+}
+
+/// The document vault and transaction history are scoped to a Supabase user, so
+/// every device signs in anonymously and row-level security keeps its rows private.
+/// A failure here is not fatal: the app still runs, but scans are not saved.
+Future<void> _initSupabase() async {
+  try {
+    await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseKey);
+    final auth = Supabase.instance.client.auth;
+    if (auth.currentUser != null) return;
+    await auth.signInAnonymously().timeout(const Duration(seconds: 8));
+  } catch (e) {
+    debugPrint('[main] Supabase unavailable; the document vault is disabled: $e');
+  }
 }
 
 class ProbashiGuardApp extends StatelessWidget {
@@ -76,6 +105,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     );
   }
 
+  /// The vault of documents already scanned on this device.
+  void _openSavedDocuments() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SavedDocumentsPortalView()),
+    );
+  }
+
   void _comingSoon(String feature) {
     final bn = _profileController.isBangla;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -119,7 +156,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         // TODO: open the Complaint screen once it is ready to link.
         _comingSoon('Complaint');
       case MenuDestination.savedDocuments:
-        _comingSoon('Saved Documents');
+        _openSavedDocuments();
       case MenuDestination.embassyContacts:
         _comingSoon('Embassy & Helplines');
       case MenuDestination.helpSupport:
@@ -144,7 +181,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       case ProfileAction.editProfile:
         _comingSoon('Edit Profile');
       case ProfileAction.savedDocuments:
-        _comingSoon('Saved Documents');
+        _openSavedDocuments();
       case ProfileAction.passportVisa:
         _comingSoon('Passport & Visa');
       case ProfileAction.bmetCard:
@@ -171,9 +208,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         userName: _profileController.userName,
         onNavigateToNotice: () => _onTabSelected(3),
         onNavigateToCrChecker: _openCrChecker,
+        onOpenSavedDocuments: _openSavedDocuments,
       ),
       PaymentView(controller: _paymentController),
-      const OcrView(),
+      const DocumentScanView(),
       const NoticeView(),
     ];
 
