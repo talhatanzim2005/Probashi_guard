@@ -368,27 +368,32 @@ class _PaymentViewState extends State<PaymentView> {
                 children: [
                   // Currency Selector Pill Row
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.currency_exchange_rounded,
-                            size: 15,
-                            color: AppColors.royalBlue,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Display Currency:',
-                            style: TextStyle(
-                              color: AppColors.royalBlue.withValues(alpha: 0.7),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                      const Icon(
+                        Icons.currency_exchange_rounded,
+                        size: 16,
+                        color: AppColors.royalBlue,
                       ),
-                      CurrencySelectorPill(controller: _controller),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Currency',
+                        style: TextStyle(
+                          color: AppColors.royalBlueMuted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: CurrencySelectorPill(controller: _controller),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../theme/app_colors.dart';
 import '../models/beneficiary_model.dart';
 import '../models/currency_model.dart';
@@ -7,7 +10,7 @@ import '../models/wallet_card_model.dart';
 import '../repository/mock_payment_repository.dart';
 import '../repository/payment_repository.dart';
 
-class PaymentController extends ChangeNotifier {
+class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
   static final PaymentController instance = PaymentController._internal();
   factory PaymentController() => instance;
 
@@ -15,6 +18,8 @@ class PaymentController extends ChangeNotifier {
 
   PaymentController._internal({PaymentRepository? repository})
       : _repository = repository ?? MockPaymentRepository() {
+    // Lets us hide the balance when the app leaves the foreground.
+    WidgetsFlutterBinding.ensureInitialized().addObserver(this);
     _loadInitialSync();
     init();
   }
@@ -42,8 +47,15 @@ class PaymentController extends ChangeNotifier {
   CurrencyModel _selectedCurrency = CurrencyModel.supportedCurrencies[0]; // BDT by default
   CurrencyModel get selectedCurrency => _selectedCurrency;
 
-  bool _isBalanceVisible = true;
+  /// How long a revealed balance stays on screen before hiding itself again.
+  static const Duration balanceAutoHideAfter = Duration(seconds: 30);
+
+  /// Hidden by default: the balance is only shown after the person taps to
+  /// reveal it (top bar and card share this one state).
+  bool _isBalanceVisible = false;
   bool get isBalanceVisible => _isBalanceVisible;
+
+  Timer? _balanceAutoHideTimer;
 
   void _loadInitialSync() {
     _cards = [
@@ -132,8 +144,44 @@ class PaymentController extends ChangeNotifier {
   }
 
   void toggleBalanceVisibility() {
-    _isBalanceVisible = !_isBalanceVisible;
+    if (_isBalanceVisible) {
+      hideBalance();
+    } else {
+      showBalance();
+    }
+  }
+
+  /// Reveals the balance, then hides it again after [balanceAutoHideAfter].
+  void showBalance() {
+    if (_isBalanceVisible) return;
+    _isBalanceVisible = true;
+    HapticFeedback.selectionClick();
+    _balanceAutoHideTimer?.cancel();
+    _balanceAutoHideTimer = Timer(balanceAutoHideAfter, hideBalance);
     notifyListeners();
+  }
+
+  void hideBalance() {
+    _balanceAutoHideTimer?.cancel();
+    _balanceAutoHideTimer = null;
+    if (!_isBalanceVisible) return;
+    _isBalanceVisible = false;
+    notifyListeners();
+  }
+
+  /// Hide the balance whenever the app is not in the foreground (home button,
+  /// app switcher, lock screen, notification shade), so it never appears in
+  /// the recent-apps preview.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) hideBalance();
+  }
+
+  @override
+  void dispose() {
+    _balanceAutoHideTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   /// Calculates and formats the balance for the active card converted to the chosen currency.

@@ -100,6 +100,13 @@ class _HomeViewState extends State<HomeView> {
   Timer? _noticeSliderTimer;
   int _currentNoticePage = 0;
 
+  /// Auto-slide on/off. The person can switch it with the pause/play button.
+  bool _noticeAutoPlay = true;
+
+  /// True only while the auto-slide timer itself is changing the page, so we
+  /// can tell timer-made changes apart from the person's own swipes/taps.
+  bool _autoSlideInFlight = false;
+
   final List<_NoticeItem> _notices = const [
     _NoticeItem(
       tag: 'FRAUD ALERT',
@@ -178,9 +185,12 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _startNoticeAutoScroll() {
+    _noticeSliderTimer?.cancel();
+    if (!_noticeAutoPlay) return;
     _noticeSliderTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) {
-      if (_noticePageController.hasClients) {
+      if (mounted && _noticePageController.hasClients) {
         final nextPage = (_currentNoticePage + 1) % _notices.length;
+        if (nextPage != _currentNoticePage) _autoSlideInFlight = true;
         _noticePageController.animateToPage(
           nextPage,
           duration: const Duration(milliseconds: 400),
@@ -188,6 +198,23 @@ class _HomeViewState extends State<HomeView> {
         );
       }
     });
+  }
+
+  /// Human control: jump to a notice (wraps around at both ends).
+  void _goToNotice(int index) {
+    if (!_noticePageController.hasClients) return;
+    final target = (index + _notices.length) % _notices.length;
+    _noticePageController.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  /// Human control: pause / resume the automatic sliding.
+  void _toggleNoticeAutoPlay() {
+    setState(() => _noticeAutoPlay = !_noticeAutoPlay);
+    _startNoticeAutoScroll();
   }
 
   @override
@@ -699,7 +726,8 @@ class _HomeViewState extends State<HomeView> {
         ),
         const SizedBox(height: 8),
 
-        // Carousel PageView (3.5s auto-sliding)
+        // Carousel PageView (auto-slides every 3.5s; person can swipe,
+        // use the arrows / dots, or pause the auto-slide)
         SizedBox(
           height: 86,
           child: PageView.builder(
@@ -709,6 +737,14 @@ class _HomeViewState extends State<HomeView> {
               setState(() {
                 _currentNoticePage = index;
               });
+              // A change the timer did not make came from the person (swipe,
+              // arrow or dot): restart the countdown so the auto-slide does
+              // not jump right after their action.
+              if (_autoSlideInFlight) {
+                _autoSlideInFlight = false;
+              } else {
+                _startNoticeAutoScroll();
+              }
             },
             itemBuilder: (context, index) {
               final notice = _notices[index];
@@ -802,25 +838,80 @@ class _HomeViewState extends State<HomeView> {
         ),
         const SizedBox(height: 8),
 
-        // Indicator Dots
+        // Controls: pause/play (left), previous - dots - next (center).
+        // The dots are tappable. The empty box on the right keeps the
+        // dots visually centered.
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(_notices.length, (index) {
-            final isActive = _currentNoticePage == index;
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOut,
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: isActive ? 20 : 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: isActive
-                    ? AppColors.royalBlue
-                    : AppColors.royalBlue.withValues(alpha: 0.22),
-                borderRadius: BorderRadius.circular(3),
+          children: [
+            IconButton(
+              onPressed: _toggleNoticeAutoPlay,
+              tooltip: _noticeAutoPlay
+                  ? 'Pause auto-slide'
+                  : 'Resume auto-slide',
+              icon: Icon(
+                _noticeAutoPlay
+                    ? Icons.pause_circle_outline_rounded
+                    : Icons.play_circle_outline_rounded,
               ),
-            );
-          }),
+              iconSize: 22,
+              color: AppColors.royalBlue,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: () => _goToNotice(_currentNoticePage - 1),
+                    tooltip: 'Previous notice',
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    iconSize: 24,
+                    color: AppColors.royalBlue,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                  ...List.generate(_notices.length, (index) {
+                    final isActive = _currentNoticePage == index;
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _goToNotice(index),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 3,
+                          vertical: 14,
+                        ),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                          width: isActive ? 20 : 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? AppColors.royalBlue
+                                : AppColors.royalBlue.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  IconButton(
+                    onPressed: () => _goToNotice(_currentNoticePage + 1),
+                    tooltip: 'Next notice',
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    iconSize: 24,
+                    color: AppColors.royalBlue,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 36),
+          ],
         ),
       ],
     );
@@ -841,7 +932,7 @@ class _HomeViewState extends State<HomeView> {
         ),
         const SizedBox(height: 12),
 
-        // 2x2 Grid Layout with bKash-style touch targets
+        // Two cards side by side
         Row(
           children: [
             // 1. Saved Documents
@@ -865,102 +956,7 @@ class _HomeViewState extends State<HomeView> {
             ),
             const SizedBox(width: 12),
 
-            // 2. Emergency SOS
-            Expanded(
-              child: _QuickFeatureCard(
-                icon: Icons.sos,
-                iconColor: AppColors.crimsonRed,
-                label: 'SOS Helpline',
-                borderColor: AppColors.crimsonRed,
-                textColor: AppColors.crimsonRed,
-                backgroundColor: AppColors.crimsonRed.withValues(alpha: 0.05),
-                iconSize: 28,
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: AppColors.cloudDancer,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: const BorderSide(
-                          color: AppColors.crimsonRed,
-                          width: 1.5,
-                        ),
-                      ),
-                      title: Row(
-                        children: const [
-                          Icon(Icons.warning_amber_rounded,
-                              color: AppColors.crimsonRed),
-                          SizedBox(width: 8),
-                          Text(
-                            'Emergency SOS',
-                            style: TextStyle(
-                              color: AppColors.crimsonRed,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      content: const Text(
-                        'Direct embassy hotlines, labor welfare desk, and overseas assistance ready for connection.',
-                        style: TextStyle(
-                          color: AppColors.royalBlue,
-                          fontSize: 13,
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(color: AppColors.royalBlue),
-                          ),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.crimsonRed,
-                            foregroundColor: AppColors.cloudDancer,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text('Call Helpline'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        Row(
-          children: [
-            // 3. Currency Converter
-            Expanded(
-              child: _QuickFeatureCard(
-                icon: Icons.currency_exchange,
-                iconColor: AppColors.emeraldGreen,
-                label: 'Exchange Rate',
-                borderColor: AppColors.royalBlue.withValues(alpha: 0.22),
-                textColor: AppColors.royalBlue,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Live Exchange Rate Calculator'),
-                      backgroundColor: AppColors.royalBlue,
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // 4. Fraud Checker
+            // 2. Fraud Checker
             Expanded(
               child: _QuickFeatureCard(
                 icon: Icons.verified_user_outlined,

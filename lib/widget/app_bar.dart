@@ -24,18 +24,39 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.onVisibilityChanged,
   });
 
+  // Layout metrics (dp). Kept as statics so preferredSize always matches
+  // what the build method actually draws.
+  static const double kActionSize = 48.0; // profile / menu (min touch target)
+  static const double kSearchHeight = 44.0;
+  static const double kBalanceHeight = 36.0;
+  static const double kBarGap = 6.0;
+  static const double kVerticalPadding = 6.0;
+  static const double kHorizontalPadding = 16.0;
+  static const double kSideSpacing = 10.0;
+
   @override
   State<CustomAppBar> createState() => _CustomAppBarState();
 
+  static const double kBorderWidth = 1.0; // bottom divider line
+
+  // 44 + 6 + 36 = 86 content + 12 vertical padding + 1 border = 99.
+  // (Scaffold adds the status-bar height on top of this automatically.)
   @override
-  Size get preferredSize => const Size.fromHeight(74.0);
+  Size get preferredSize => const Size.fromHeight(
+        kSearchHeight +
+            kBarGap +
+            kBalanceHeight +
+            (kVerticalPadding * 2) +
+            kBorderWidth,
+      );
 }
 
 class _CustomAppBarState extends State<CustomAppBar> {
   final PaymentController _payment = PaymentController.instance;
 
-  bool get _isBalanceVisible =>
-      widget.isBalanceVisible ?? _payment.isBalanceVisible;
+  // Always follow the shared controller so the top bar and the card can never
+  // disagree.
+  bool get _isBalanceVisible => _payment.isBalanceVisible;
 
   void _toggleBalance() {
     _payment.toggleBalanceVisibility();
@@ -43,320 +64,299 @@ class _CustomAppBarState extends State<CustomAppBar> {
     widget.onBalanceTap?.call();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Proportional dimensions:
-    // Side icon height: 40.0
-    // Combined search (26.0) + balance (22.0) = 48.0 -> Exactly 1.2x of side icon height
-    const double kActionHeight = 40.0;
-    const double kItemRadius = 8.0;
-    const double kSideSpacing = 8.0;
-    const double kSearchBarHeight = 26.0;
-    const double kBalanceBarHeight = 22.0;
-    const double kBarGap = 3.0;
+  BoxDecoration _softShadowCircle() => BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.royalBlue.withValues(alpha: 0.06),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      );
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.cloudDancer,
-        border: Border(
-          bottom: BorderSide(
-            color: AppColors.royalBlue.withValues(alpha: 0.12),
-            width: 1,
+  Widget _circleButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+  }) {
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Container(
+        decoration: _softShadowCircle(),
+        child: Material(
+          color: AppColors.cloudDancer,
+          shape: CircleBorder(
+            side: BorderSide(
+              color: AppColors.royalBlue.withValues(alpha: 0.30),
+              width: 1.3,
+            ),
+          ),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: CustomAppBar.kActionSize,
+              height: CustomAppBar.kActionSize,
+              child: Icon(icon, color: AppColors.royalBlue, size: 26),
+            ),
           ),
         ),
       ),
-      child: Stack(
-        children: [
-          // Ambient Cloud Atmosphere decorative contours (strictly in theme palette)
-          Positioned(
-            top: -24,
-            left: -18,
-            child: Container(
-              width: 110,
-              height: 110,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.royalBlue.withValues(alpha: 0.035),
-              ),
-            ),
-          ),
-          Positioned(
-            top: -12,
-            right: 48,
-            child: Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.royalBlue.withValues(alpha: 0.025),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -28,
-            right: -16,
-            child: Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.royalBlue.withValues(alpha: 0.03),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 6,
-            right: 14,
-            child: Icon(
-              Icons.cloud_queue,
-              size: 50,
-              color: AppColors.royalBlue.withValues(alpha: 0.04),
-            ),
-          ),
+    );
+  }
 
-          // Main Header Content
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14.0,
-                vertical: 8.0,
+  Widget _buildSearchField() {
+    return Container(
+      height: CustomAppBar.kSearchHeight,
+      decoration: BoxDecoration(
+        color: AppColors.cloudDancer,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.royalBlue.withValues(alpha: 0.30),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.royalBlue.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: widget.searchController,
+        onChanged: widget.onSearchChanged,
+        textInputAction: TextInputAction.search,
+        cursorColor: AppColors.royalBlue,
+        style: const TextStyle(
+          color: AppColors.royalBlue,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+        ),
+        textAlignVertical: TextAlignVertical.center,
+        decoration: const InputDecoration(
+          isDense: true,
+          hintText: 'Search services, agents...',
+          hintStyle: TextStyle(
+            color: AppColors.royalBlueMuted,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: AppColors.royalBlue,
+            size: 22,
+          ),
+          prefixIconConstraints: BoxConstraints(minWidth: 42, minHeight: 42),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: EdgeInsets.only(right: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBalanceBar() {
+    return ListenableBuilder(
+      listenable: _payment,
+      builder: (context, _) {
+        final effectiveBalance =
+            widget.balanceAmount ?? _payment.unmaskedActiveBalance;
+        final visible = _isBalanceVisible;
+
+        return Semantics(
+          button: true,
+          label: visible
+              ? 'Balance $effectiveBalance. Double tap to hide.'
+              : 'Balance hidden. Double tap to show.',
+          onTap: _toggleBalance,
+          excludeSemantics: true,
+          child: InkWell(
+            onTap: _toggleBalance,
+            borderRadius: BorderRadius.circular(12),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              // Fixed height: the bar never changes size when toggled, so the
+              // page below it does not jump.
+              height: CustomAppBar.kBalanceHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: visible
+                    ? AppColors.emeraldGreen.withValues(alpha: 0.06)
+                    : AppColors.cloudDancer,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: visible
+                      ? AppColors.emeraldGreen
+                      : AppColors.royalBlue.withValues(alpha: 0.30),
+                  width: 1.2,
+                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // 1. Profile Icon at most left (with user's adjusted border radius kItemRadius * 2.5)
-                  GestureDetector(
-                    onTap: widget.onProfileTap,
-                    child: Container(
-                      width: kActionHeight,
-                      height: kActionHeight,
-                      decoration: BoxDecoration(
-                        color: AppColors.cloudDancer,
-                        borderRadius: BorderRadius.circular(kItemRadius * 2.5),
-                        border: Border.all(
-                          color: AppColors.royalBlue.withValues(alpha: 0.28),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.royalBlue.withValues(alpha: 0.04),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: visible
+                    ? Row(
+                        key: const ValueKey('balance-shown'),
+                        children: [
+                          const Icon(
+                            Icons.account_balance_wallet_rounded,
+                            size: 18,
+                            color: AppColors.emeraldGreen,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              effectiveBalance,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.emeraldGreen,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.2,
+                                // Equal-width digits: no wobble.
+                                fontFeatures: [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.visibility_off_outlined,
+                            size: 18,
+                            color: AppColors.royalBlue,
+                          ),
+                        ],
+                      )
+                    : const Row(
+                        key: ValueKey('balance-hidden'),
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.touch_app_outlined,
+                            size: 18,
+                            color: AppColors.royalBlue,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Tap to see balance',
+                            style: TextStyle(
+                              color: AppColors.royalBlue,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.1,
+                            ),
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.person,
-                        color: AppColors.royalBlue,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: kSideSpacing),
-
-                  // 2. Center Column: Search Bar + Balance Bar
-                  // Naturally and perfectly main-axis aligned with each other
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Search Bar (height: 26.0, border radius: kItemRadius)
-                        Container(
-                          height: kSearchBarHeight,
-                          decoration: BoxDecoration(
-                            color: AppColors.cloudDancer,
-                            borderRadius: BorderRadius.circular(kItemRadius),
-                            border: Border.all(
-                              color: AppColors.royalBlue.withValues(
-                                alpha: 0.28,
-                              ),
-                              width: 1.0,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.royalBlue.withValues(
-                                  alpha: 0.04,
-                                ),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: TextField(
-                            controller: widget.searchController,
-                            onChanged: widget.onSearchChanged,
-                            style: const TextStyle(
-                              color: AppColors.royalBlue,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            textAlignVertical: TextAlignVertical.center,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              hintText: 'Search services, agents...',
-                              hintStyle: TextStyle(
-                                color: AppColors.royalBlue.withValues(
-                                  alpha: 0.55,
-                                ),
-                                fontSize: 11,
-                              ),
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                color: AppColors.royalBlue,
-                                size: 15,
-                              ),
-                              prefixIconConstraints: const BoxConstraints(
-                                minWidth: 26,
-                                minHeight: 26,
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 0,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: kBarGap),
-
-                        // Balance Bar (height: 22.0, expands on tap, border radius: kItemRadius)
-                        ListenableBuilder(
-                          listenable: _payment,
-                          builder: (context, _) {
-                            final effectiveBalance =
-                                widget.balanceAmount ?? _payment.unmaskedActiveBalance;
-
-                            return InkWell(
-                              onTap: _toggleBalance,
-                              borderRadius: BorderRadius.circular(kItemRadius),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 250),
-                                curve: Curves.easeInOut,
-                                height: _isBalanceVisible ? 28.0 : kBalanceBarHeight,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8.0,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.cloudDancer,
-                                  borderRadius: BorderRadius.circular(kItemRadius),
-                                  border: Border.all(
-                                    color: _isBalanceVisible
-                                        ? AppColors.emeraldGreen
-                                        : AppColors.royalBlue.withValues(
-                                            alpha: 0.28,
-                                          ),
-                                    width: 1.0,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: _isBalanceVisible
-                                          ? AppColors.emeraldGreen.withValues(
-                                              alpha: 0.08,
-                                            )
-                                          : AppColors.royalBlue.withValues(
-                                              alpha: 0.04,
-                                            ),
-                                      blurRadius: 3,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ],
-                                ),
-                                child: _isBalanceVisible
-                                    ? Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(
-                                                Icons.account_balance_wallet,
-                                                size: 13,
-                                                color: AppColors.emeraldGreen,
-                                              ),
-                                              const SizedBox(width: 5),
-                                              Text(
-                                                effectiveBalance,
-                                                style: const TextStyle(
-                                                  color: AppColors.emeraldGreen,
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.w700,
-                                                  letterSpacing: 0.2,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const Icon(
-                                            Icons.visibility_off_outlined,
-                                            size: 13,
-                                            color: AppColors.royalBlue,
-                                          ),
-                                        ],
-                                      )
-                                    : Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: const [
-                                          Icon(
-                                            Icons.touch_app_outlined,
-                                            size: 12,
-                                            color: AppColors.royalBlue,
-                                          ),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            'Tap to see Balance',
-                                            style: TextStyle(
-                                              color: AppColors.royalBlue,
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w600,
-                                              letterSpacing: 0.1,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: kSideSpacing),
-
-                  // 3. Hamburger Menu Icon at most right (with user's adjusted border radius kItemRadius * 2)
-                  Container(
-                    width: kActionHeight,
-                    height: kActionHeight,
-                    decoration: BoxDecoration(
-                      color: AppColors.cloudDancer,
-                      borderRadius: BorderRadius.circular(kItemRadius * 2.3),
-                      border: Border.all(
-                        color: AppColors.royalBlue.withValues(alpha: 0.28),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.royalBlue.withValues(alpha: 0.04),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      onPressed: widget.onMenuTap,
-                      icon: const Icon(
-                        Icons.menu,
-                        color: AppColors.royalBlue,
-                        size: 20,
-                      ),
-                      padding: EdgeInsets.zero,
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Larger system font sizes are respected, but capped so the fixed-height
+    // bar can never overflow.
+    return MediaQuery.withClampedTextScaling(
+      minScaleFactor: 1.0,
+      maxScaleFactor: 1.15,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cloudDancer,
+          border: Border(
+            bottom: BorderSide(
+              color: AppColors.royalBlue.withValues(alpha: 0.14),
+              width: CustomAppBar.kBorderWidth,
+            ),
+          ),
+        ),
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // Ambient cloud decoration (theme palette only)
+            Positioned(
+              top: -24,
+              left: -18,
+              child: Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.royalBlue.withValues(alpha: 0.035),
+                ),
+              ),
+            ),
+            Positioned(
+              top: -12,
+              right: 56,
+              child: Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.royalBlue.withValues(alpha: 0.025),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -28,
+              right: -16,
+              child: Container(
+                width: 130,
+                height: 130,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.royalBlue.withValues(alpha: 0.03),
+                ),
+              ),
+            ),
+
+            // Main header content
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: CustomAppBar.kHorizontalPadding,
+                  vertical: CustomAppBar.kVerticalPadding,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _circleButton(
+                      icon: Icons.person_rounded,
+                      label: 'Profile',
+                      onTap: widget.onProfileTap,
+                    ),
+                    const SizedBox(width: CustomAppBar.kSideSpacing),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildSearchField(),
+                          const SizedBox(height: CustomAppBar.kBarGap),
+                          _buildBalanceBar(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: CustomAppBar.kSideSpacing),
+                    _circleButton(
+                      icon: Icons.menu_rounded,
+                      label: 'Open menu',
+                      onTap: widget.onMenuTap,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
