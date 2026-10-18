@@ -45,7 +45,7 @@ class _ProfileViewState extends State<ProfileView> {
   void _do(ProfileAction action) => widget.onAction?.call(action);
 
   Future<void> _logout() async {
-    final ok = await confirmLogout(context, bangla: _bn);
+    final ok = await confirmLogout(context);
     if (ok) _do(ProfileAction.logout);
   }
 
@@ -63,7 +63,7 @@ class _ProfileViewState extends State<ProfileView> {
             title: Text(
               label,
               style: TextStyle(
-                color: AppColors.royalBlue,
+                color: AppColors.ink,
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
               ),
             ),
@@ -244,7 +244,7 @@ class _ProfileViewState extends State<ProfileView> {
                     _t('Version: ${_c.appVersion}',
                         'ভার্সন: ${_c.appVersion}'),
                     style: const TextStyle(
-                      color: AppColors.royalBlueMuted,
+                      color: AppColors.inkMuted,
                       fontSize: 12,
                     ),
                   ),
@@ -441,7 +441,7 @@ class _ProfileViewState extends State<ProfileView> {
                 '$total টির মধ্যে $done টি যাচাই সম্পন্ন',
               ),
               style: const TextStyle(
-                color: AppColors.royalBlueMuted,
+                color: AppColors.inkMuted,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w500,
               ),
@@ -464,7 +464,7 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(
-          color: AppColors.royalBlueMuted,
+          color: AppColors.inkMuted,
           fontSize: 13,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.2,
@@ -547,9 +547,9 @@ class _ProfileTile extends StatelessWidget {
                   Text(
                     title,
                     style: const TextStyle(
-                      color: AppColors.royalBlue,
+                      color: AppColors.ink,
                       fontSize: 15,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   if (subtitle != null) ...[
@@ -557,7 +557,7 @@ class _ProfileTile extends StatelessWidget {
                     Text(
                       subtitle!,
                       style: const TextStyle(
-                        color: AppColors.royalBlueMuted,
+                        color: AppColors.inkMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -571,7 +571,7 @@ class _ProfileTile extends StatelessWidget {
                 child: Text(
                   value!,
                   style: const TextStyle(
-                    color: AppColors.royalBlueMuted,
+                    color: AppColors.inkMuted,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),

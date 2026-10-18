@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/payment_controller.dart';
 
@@ -36,7 +37,7 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$label copied to clipboard!'),
+        content: Text(AppStrings.of(context).copiedToClipboard(label)),
         backgroundColor: AppColors.emeraldGreen,
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
@@ -50,6 +51,7 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.cloudDancer,
@@ -76,9 +78,9 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
           const SizedBox(height: 18),
 
           // Title & Subtitle
-          const Text(
-            'Receive Remittance & Funds',
-            style: TextStyle(
+          Text(
+            s.receiveTitle,
+            style: const TextStyle(
               color: AppColors.royalBlue,
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -87,12 +89,12 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Scan QR code or use account IBAN for direct transfer',
+            s.receiveSubtitle,
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.royalBlue.withValues(alpha: 0.6),
               fontSize: 12.5,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 20),
@@ -135,7 +137,7 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'Probashi Verified Merchant & Personal ID',
+                      s.verifiedMerchantId,
                       style: TextStyle(
                         color: AppColors.royalBlue.withValues(alpha: 0.7),
                         fontSize: 10,
@@ -170,7 +172,7 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'ACCOUNT ID',
+                          s.accountId.toUpperCase(),
                           style: TextStyle(
                             color: AppColors.royalBlue.withValues(alpha: 0.5),
                             fontSize: 10,
@@ -195,7 +197,8 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
                         color: _copied ? AppColors.emeraldGreen : AppColors.royalBlue,
                         size: 18,
                       ),
-                      onPressed: () => _copyToClipboard(_accountNumber, 'Account ID'),
+                      onPressed: () =>
+                          _copyToClipboard(_accountNumber, s.accountId),
                     ),
                   ],
                 ),
@@ -212,7 +215,7 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'REMITTANCE IBAN',
+                          s.remittanceIban,
                           style: TextStyle(
                             color: AppColors.royalBlue.withValues(alpha: 0.5),
                             fontSize: 10,
@@ -257,7 +260,7 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
                     Navigator.pop(context);
                   },
                   icon: const Icon(Icons.close_rounded, size: 16),
-                  label: const Text('Close'),
+                  label: Text(s.close),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.royalBlue,
                     side: BorderSide(
@@ -276,10 +279,11 @@ class _ReceiveBottomSheetState extends State<ReceiveBottomSheet> {
                 child: ElevatedButton.icon(
                   onPressed: () {
                     HapticFeedback.selectionClick();
-                    _copyToClipboard('$_accountNumber | IBAN: $_ibanNumber', 'Payment info');
+                    _copyToClipboard(
+                        '$_accountNumber | IBAN: $_ibanNumber', s.paymentInfo);
                   },
                   icon: const Icon(Icons.share_rounded, size: 16),
-                  label: const Text('Share Info'),
+                  label: Text(s.shareInfo),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.royalBlue,
                     foregroundColor: AppColors.cloudDancer,

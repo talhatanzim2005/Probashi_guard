@@ -19,6 +19,14 @@ abstract final class AppColors {
   // Tints of the palette (not new colors).
   // ---------------------------------------------------------------------------
 
+  /// Normal body text (#040303). Labels, values, subtitles, and descriptions
+  /// use this instead of [royalBlue]; [royalBlue] stays on headings, icons,
+  /// borders, and brand surfaces.
+  static const Color ink = Color(0xFF040303);
+
+  /// [ink] at 70% opacity, for helper text sitting next to normal text.
+  static const Color inkMuted = Color(0xB3040303);
+
   /// Royal Blue at 75% opacity, for secondary / helper text.
   /// Keeps roughly 4.5:1 contrast on [cloudDancer] so it stays readable
   /// outdoors. Do not go lighter than this for text; use it instead of

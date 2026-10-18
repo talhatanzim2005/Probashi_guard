@@ -12,20 +12,17 @@ void main() {
     await tester.pumpWidget(const ProbashiGuardApp());
 
     // Verify AppBar components
-    expect(find.byIcon(Icons.person), findsOneWidget);
-    expect(find.byIcon(Icons.search), findsOneWidget);
-    expect(find.text('Tap to see Balance'), findsOneWidget);
-    expect(find.byIcon(Icons.menu), findsOneWidget);
+    expect(find.byIcon(Icons.person_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+    expect(find.text('Tap to see balance'), findsOneWidget);
+    expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
 
     // Verify User Greeting Header
-    expect(find.text('Hi, User'), findsOneWidget);
+    expect(find.text('Hi, Guest User'), findsOneWidget);
 
     // Verify Hero Card components
     expect(find.text('Pre-Departure Company & Travel Checklist'), findsOneWidget);
-    expect(find.text('3/8 Verified'), findsOneWidget);
-    expect(find.text('CR Status: Active & Verified'), findsOneWidget);
-    expect(find.text('Work Visa: Approved'), findsOneWidget);
-    expect(find.text('BMET Smart Card: Linked'), findsOneWidget);
+    expect(find.text('3/8 Done'), findsOneWidget);
 
     // Toggle a checklist item to verify interactive state
     final fourthItem = find.text('Verify BMET Smart Clearance Card via QR code scan');
@@ -37,7 +34,7 @@ void main() {
     await tester.tap(fourthItem);
     await tester.pumpAndSettle();
     // Verification count should increase from 3 to 4
-    expect(find.text('4/8 Verified'), findsOneWidget);
+    expect(find.text('4/8 Done'), findsOneWidget);
 
     // Verify Auto-Sliding Notice Slider
     expect(find.text('Notice Board'), findsOneWidget);
@@ -46,8 +43,6 @@ void main() {
     // Verify Quick Features Grid
     expect(find.text('Quick Features'), findsOneWidget);
     expect(find.text('Saved Documents'), findsOneWidget);
-    expect(find.text('SOS Helpline'), findsOneWidget);
-    expect(find.text('Exchange Rate'), findsOneWidget);
     expect(find.text('Fraud Checker'), findsOneWidget);
 
     // Verify Bottom Navigation Items

@@ -248,40 +248,72 @@ class MockPaymentRepository implements PaymentRepository {
     return _transactions.where((tx) => tx.cardId == cardId).toList();
   }
 
+  /// A mock has no gateway, so it cannot produce a real Checkout URL and will
+  /// not pretend to. Callers surface this as a gateway error instead of showing
+  /// a success the person never paid for.
   @override
-  Future<TransactionModel> executeSendMoney({
-    required String sourceCardId,
-    required String recipientName,
-    required String recipientPhone,
+  Future<Map<String, dynamic>> executeSendMoney({
+    required String cardId,
+    required dynamic beneficiary,
     required double sourceAmount,
     required String sourceCurrency,
-    required double destinationAmount,
-    required String destinationCurrency,
+    required double exchangeRate,
+    required double amountBdt,
+    required double incentiveBdt,
+    String? connectedAccountId,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 150));
+    throw Exception(
+      'Payment Gateway Error: No payment gateway is configured. '
+      'Start the backend service (cd backend_service && npm run dev) to open Stripe Checkout.',
+    );
+  }
 
-    // Deduct from card balance in BDT baseline
-    final cardIndex = _cards.indexWhere((c) => c.id == sourceCardId);
+  @override
+  Future<bool> verifyCheckoutSession(String sessionId) async => false;
+
+  @override
+  Future<void> completePaymentRecord({
+    required String cardId,
+    required String beneficiaryName,
+    required String beneficiaryPhone,
+    required double sourceAmount,
+    required String sourceCurrency,
+    required double exchangeRate,
+    required double amountBdt,
+    required double incentiveBdt,
+    required String stripeSessionId,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 120));
+
+    final cardIndex = _cards.indexWhere((c) => c.id == cardId);
     if (cardIndex != -1) {
       final currentCard = _cards[cardIndex];
-      final newBalance = (currentCard.balance - destinationAmount).clamp(0.0, double.infinity);
+      final newBalance =
+          (currentCard.balance - amountBdt).clamp(0.0, double.infinity);
       _cards[cardIndex] = currentCard.copyWith(balance: newBalance);
     }
 
-    final newTx = TransactionModel(
-      id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
-      title: recipientName,
-      subtitle: 'Remittance to $recipientPhone',
-      amount: destinationAmount,
-      currency: destinationCurrency,
-      timestamp: DateTime.now(),
-      type: TransactionType.send,
-      cardId: sourceCardId,
-      iconCategory: 'person',
-    );
-
-    _transactions = [newTx, ..._transactions];
-    return newTx;
+    // The settled row replaces the pending one when the session is replayed.
+    _transactions.removeWhere((tx) => tx.stripeSessionId == stripeSessionId);
+    _transactions = [
+      TransactionModel(
+        id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
+        title: beneficiaryName,
+        subtitle: 'Remittance to $beneficiaryPhone',
+        amount: amountBdt + incentiveBdt,
+        amountBdt: amountBdt,
+        convertedAmount: sourceAmount,
+        currency: 'BDT',
+        timestamp: DateTime.now(),
+        type: TransactionType.send,
+        status: TransactionStatus.completed,
+        cardId: cardId,
+        iconCategory: 'person',
+        stripeSessionId: stripeSessionId,
+      ),
+      ..._transactions,
+    ];
   }
 
   @override
@@ -320,4 +352,11 @@ class MockPaymentRepository implements PaymentRepository {
     _transactions = [transferTx, ..._transactions];
     return true;
   }
+
+  @override
+  Future<String> getWalletHolderName() async => 'Probashi Expatriate Worker';
+
+  /// The bundled [CurrencyModel] rates already stand in offline mode.
+  @override
+  Future<Map<String, double>?> fetchExchangeRates() async => null;
 }

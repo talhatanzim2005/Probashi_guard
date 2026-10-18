@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
 import 'controllers/payment_controller.dart';
 import 'flows/send_flow_view.dart';
@@ -77,9 +78,9 @@ class _PaymentViewState extends State<PaymentView> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Add Remittance Beneficiary',
-                style: TextStyle(
+              Text(
+                AppStrings.of(context).addBeneficiary,
+                style: const TextStyle(
                   color: AppColors.royalBlue,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
@@ -87,7 +88,7 @@ class _PaymentViewState extends State<PaymentView> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Save family or merchant details for quick 1-tap transfer',
+                AppStrings.of(context).addBeneficiarySubtitle,
                 style: TextStyle(
                   color: AppColors.royalBlue.withValues(alpha: 0.6),
                   fontSize: 12,
@@ -147,7 +148,7 @@ class _PaymentViewState extends State<PaymentView> {
               TextField(
                 controller: nameController,
                 decoration: InputDecoration(
-                  labelText: 'Recipient Full Name',
+                  labelText: AppStrings.of(context).recipientFullName,
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -158,7 +159,8 @@ class _PaymentViewState extends State<PaymentView> {
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
                 decoration: InputDecoration(
-                  labelText: 'Mobile Number (${selectedCountry.dialCode}...)',
+                  labelText: AppStrings.of(context)
+                      .mobileNumberHint(selectedCountry.dialCode),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -226,7 +228,8 @@ class _PaymentViewState extends State<PaymentView> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Save Beneficiary', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: Text(AppStrings.of(context).saveBeneficiary,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
               ),
             ],
           ),
@@ -261,9 +264,9 @@ class _PaymentViewState extends State<PaymentView> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Complete Transaction Ledger',
-                style: TextStyle(
+              Text(
+                AppStrings.of(context).completeLedger,
+                style: const TextStyle(
                   color: AppColors.royalBlue,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -295,22 +298,26 @@ class _PaymentViewState extends State<PaymentView> {
                       title: Text(
                         tx.title,
                         style: const TextStyle(
-                          color: AppColors.royalBlue,
+                          color: AppColors.ink,
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
                         ),
                       ),
                       subtitle: Text(
                         '${tx.subtitle} • ${tx.timestamp.day}/${tx.timestamp.month}/${tx.timestamp.year}',
-                        style: TextStyle(
-                          color: AppColors.royalBlue.withValues(alpha: 0.6),
+                        style: const TextStyle(
+                          color: AppColors.inkMuted,
                           fontSize: 12,
                         ),
                       ),
                       trailing: Text(
                         '${tx.isIncoming ? '+' : '-'}${tx.currency} ${tx.amount.toStringAsFixed(2)}',
                         style: TextStyle(
-                          color: tx.isIncoming ? AppColors.emeraldGreen : AppColors.royalBlue,
+                          color: tx.isPending
+                              ? AppColors.inkMuted
+                              : (tx.isIncoming
+                                  ? AppColors.emeraldGreen
+                                  : AppColors.ink),
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
                         ),
@@ -375,12 +382,12 @@ class _PaymentViewState extends State<PaymentView> {
                         color: AppColors.royalBlue,
                       ),
                       const SizedBox(width: 6),
-                      const Text(
-                        'Currency',
-                        style: TextStyle(
+                      Text(
+                        AppStrings.of(context).currency,
+                        style: const TextStyle(
                           color: AppColors.royalBlueMuted,
                           fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(width: 10),

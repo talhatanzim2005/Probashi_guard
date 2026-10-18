@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../l10n/language_controller.dart';
+
 /// Front-end-only state for the profile and menu.
 ///
 /// Everything here is local placeholder data. When the backend is ready,
@@ -13,8 +15,6 @@ class ProfileController extends ChangeNotifier {
   String _userName = 'Guest User';
   String _phoneNumber = '+880 1XXX-XXXXXX';
 
-  // TODO(backend): persist (e.g. SharedPreferences) so it survives restarts.
-  String _languageCode = 'en';
   bool _biometricEnabled = false;
 
   // TODO: feed these from the home checklist once it has a shared state.
@@ -25,8 +25,10 @@ class ProfileController extends ChangeNotifier {
 
   String get userName => _userName;
   String get phoneNumber => _phoneNumber;
-  String get languageCode => _languageCode;
-  bool get isBangla => _languageCode == 'bn';
+  /// Language lives in [LanguageController] — it is app-wide and persisted —
+  /// so these just read through to it and there is only one source of truth.
+  String get languageCode => LanguageController.instance.languageCode;
+  bool get isBangla => LanguageController.instance.isBangla;
   bool get biometricEnabled => _biometricEnabled;
   int get checklistCompleted => _checklistCompleted;
   int get checklistTotal => _checklistTotal;
@@ -43,8 +45,8 @@ class ProfileController extends ChangeNotifier {
   }
 
   void setLanguage(String code) {
-    if (code == _languageCode) return;
-    _languageCode = code;
+    if (code == languageCode) return;
+    LanguageController.instance.setLanguageCode(code);
     notifyListeners();
   }
 

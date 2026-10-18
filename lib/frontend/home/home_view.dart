@@ -1,23 +1,42 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
+import '../notice/controllers/notice_controller.dart';
+import 'app_search_view.dart';
 
 class HomeView extends StatefulWidget {
   final VoidCallback? onNavigateToNotice;
   final VoidCallback? onNavigateToCrChecker;
 
+  /// Opens the document scanner: checking a paper for fraud starts with a scan.
+  final VoidCallback? onNavigateToFraudChecker;
+
   /// Opens the vault of documents already scanned on this device.
   final VoidCallback? onOpenSavedDocuments;
 
+  /// Callback when the search bar is tapped.
+  final VoidCallback? onSearchTap;
+
+  /// Whether to render the dedicated search bar inside the home scroll view.
+  final bool showSearchBar;
+
   /// Shown in the greeting. Falls back to "Welcome" when null.
   final String? userName;
+
+  /// Optional NoticeController for testing or overriding feed source.
+  final NoticeController? noticeController;
 
   const HomeView({
     super.key,
     this.onNavigateToNotice,
     this.onNavigateToCrChecker,
+    this.onNavigateToFraudChecker,
     this.onOpenSavedDocuments,
+    this.onSearchTap,
+    this.showSearchBar = false,
     this.userName,
+    this.noticeController,
   });
 
   @override
@@ -25,27 +44,17 @@ class HomeView extends StatefulWidget {
 }
 
 class _ChecklistItem {
-  final String title;
-  final String subtitle;
   bool isCompleted;
 
-  _ChecklistItem({
-    required this.title,
-    required this.subtitle,
-    required this.isCompleted,
-  });
+  _ChecklistItem({required this.isCompleted});
 }
 
 class _NoticeItem {
-  final String tag;
-  final String message;
   final IconData icon;
   final Color accentColor;
   final Color backgroundColor;
 
   const _NoticeItem({
-    required this.tag,
-    required this.message,
     required this.icon,
     required this.accentColor,
     required this.backgroundColor,
@@ -56,47 +65,16 @@ class _HomeViewState extends State<HomeView> {
   // 1. Checklist State
   bool _isChecklistExpanded = false;
 
+  /// Tick state only, in the same order as [AppStrings.checklist].
   final List<_ChecklistItem> _checklist = [
-    _ChecklistItem(
-      title: 'Verify Company Commercial Registration (CR/Trade License) is active',
-      subtitle: 'Official host country establishment database status',
-      isCompleted: true,
-    ),
-    _ChecklistItem(
-      title: 'Confirm work visa is authentic on the host country immigration portal',
-      subtitle: 'Cross-check visa number directly with ministry records',
-      isCompleted: true,
-    ),
-    _ChecklistItem(
-      title: 'Ensure visa type is \'Work/Employment\' (NOT Visit or Tourist)',
-      subtitle: 'Avoid illegal travel on visitor visas without legal protections',
-      isCompleted: true,
-    ),
-    _ChecklistItem(
-      title: 'Verify BMET Smart Clearance Card via QR code scan',
-      subtitle: 'Government authorized emigrant clearance registration',
-      isCompleted: false,
-    ),
-    _ChecklistItem(
-      title: 'Cross-check that company name on contract matches the visa',
-      subtitle: 'Guarantees the sponsor matches the real workplace',
-      isCompleted: false,
-    ),
-    _ChecklistItem(
-      title: 'Confirm salary, food allowance, and accommodation terms in writing',
-      subtitle: 'Legally attested employment agreement terms',
-      isCompleted: false,
-    ),
-    _ChecklistItem(
-      title: 'Obtain company representative contact and airport pickup details',
-      subtitle: 'Authorized reception contact point at arrival airport',
-      isCompleted: false,
-    ),
-    _ChecklistItem(
-      title: 'Save embassy helpline and labor dispute contact numbers',
-      subtitle: 'Direct hotlines for legal and labor grievance support',
-      isCompleted: false,
-    ),
+    _ChecklistItem(isCompleted: true),
+    _ChecklistItem(isCompleted: true),
+    _ChecklistItem(isCompleted: true),
+    _ChecklistItem(isCompleted: false),
+    _ChecklistItem(isCompleted: false),
+    _ChecklistItem(isCompleted: false),
+    _ChecklistItem(isCompleted: false),
+    _ChecklistItem(isCompleted: false),
   ];
 
   // 2. Auto-Sliding Notice Slider State
@@ -111,27 +89,19 @@ class _HomeViewState extends State<HomeView> {
   /// can tell timer-made changes apart from the person's own swipes/taps.
   bool _autoSlideInFlight = false;
 
+  /// Styling only, in the same order as [AppStrings.noticeSlides].
   final List<_NoticeItem> _notices = const [
     _NoticeItem(
-      tag: 'FRAUD ALERT',
-      message:
-          'Fraud Alert: Verify all work permits on the official embassy portal before booking flights.',
       icon: Icons.warning_amber_rounded,
       accentColor: AppColors.crimsonRed,
       backgroundColor: AppColors.cloudDancer,
     ),
     _NoticeItem(
-      tag: 'EMBASSY ADVISORY',
-      message:
-          'Embassy Advisory: Mandatory BMET Smart Card scanning at airport immigration.',
       icon: Icons.verified_user_outlined,
       accentColor: AppColors.royalBlue,
       backgroundColor: AppColors.cloudDancer,
     ),
     _NoticeItem(
-      tag: 'LABOR WING NOTICE',
-      message:
-          'Labor Wing Notice: Updated minimum wage standards for destination countries.',
       icon: Icons.campaign_outlined,
       accentColor: AppColors.emeraldGreen,
       backgroundColor: AppColors.cloudDancer,
@@ -159,33 +129,41 @@ class _HomeViewState extends State<HomeView> {
 
   /// Protection status shown in the greeting badge. Driven by real progress so
   /// the app never claims "Protected" while most checks are still open.
-  ({String label, IconData icon, Color color}) get _status {
+  ({String label, IconData icon, Color color}) _statusFor(AppStrings s) {
     if (_checklist.isNotEmpty && _completedCount == _checklist.length) {
       return (
-        label: 'Fully Protected',
+        label: s.fullyProtected,
         icon: Icons.verified_user_rounded,
         color: AppColors.emeraldGreen,
       );
     }
     if (_progressPercent >= 0.5) {
       return (
-        label: 'Partially Protected',
+        label: s.partiallyProtected,
         icon: Icons.shield_outlined,
         color: AppColors.royalBlue,
       );
     }
     return (
-      label: 'Action Needed',
+      label: s.actionNeeded,
       icon: Icons.warning_amber_rounded,
       color: AppColors.crimsonRed,
     );
   }
+
+  NoticeController get _noticeController =>
+      widget.noticeController ?? NoticeController.instance;
+
+  int get _sliderItemCount => _noticeController.latest.isNotEmpty
+      ? _noticeController.latest.length
+      : _notices.length;
 
   @override
   void initState() {
     super.initState();
     _noticePageController = PageController();
     _startNoticeAutoScroll();
+    _noticeController.loadOnce();
   }
 
   void _startNoticeAutoScroll() {
@@ -193,7 +171,9 @@ class _HomeViewState extends State<HomeView> {
     if (!_noticeAutoPlay) return;
     _noticeSliderTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) {
       if (mounted && _noticePageController.hasClients) {
-        final nextPage = (_currentNoticePage + 1) % _notices.length;
+        final count = _sliderItemCount;
+        if (count == 0) return;
+        final nextPage = (_currentNoticePage + 1) % count;
         if (nextPage != _currentNoticePage) _autoSlideInFlight = true;
         _noticePageController.animateToPage(
           nextPage,
@@ -207,7 +187,9 @@ class _HomeViewState extends State<HomeView> {
   /// Human control: jump to a notice (wraps around at both ends).
   void _goToNotice(int index) {
     if (!_noticePageController.hasClients) return;
-    final target = (index + _notices.length) % _notices.length;
+    final count = _sliderItemCount;
+    if (count == 0) return;
+    final target = (index + count) % count;
     _noticePageController.animateToPage(
       target,
       duration: const Duration(milliseconds: 300),
@@ -234,8 +216,79 @@ class _HomeViewState extends State<HomeView> {
     });
   }
 
+  Widget _buildSearchBar(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppColors.cloudDancer,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.royalBlue.withValues(alpha: 0.30),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.royalBlue.withValues(alpha: 0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: TextField(
+          readOnly: true,
+          onTap: () {
+            if (widget.onSearchTap != null) {
+              widget.onSearchTap!();
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AppSearchView(
+                    onNavigateTab: (idx) {
+                      if (idx == 3) widget.onNavigateToNotice?.call();
+                      if (idx == 2) widget.onNavigateToFraudChecker?.call();
+                    },
+                  ),
+                ),
+              );
+            }
+          },
+          style: const TextStyle(
+            color: AppColors.ink,
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+          ),
+          textAlignVertical: TextAlignVertical.center,
+          decoration: const InputDecoration(
+            isDense: true,
+            hintText: 'Search services, features... / সেবা খুঁজুন...',
+            hintStyle: TextStyle(
+              color: AppColors.inkMuted,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w400,
+            ),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: AppColors.royalBlue,
+              size: 22,
+            ),
+            prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
+
     return Scaffold(
       backgroundColor: AppColors.cloudDancer,
       body: ListView(
@@ -254,8 +307,8 @@ class _HomeViewState extends State<HomeView> {
                     children: [
                       Text(
                         widget.userName == null
-                            ? 'Welcome'
-                            : 'Hi, ${widget.userName}',
+                            ? s.welcome
+                            : s.greeting(widget.userName!),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -266,12 +319,12 @@ class _HomeViewState extends State<HomeView> {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      const Text(
-                        'Your Overseas Protection Dashboard',
-                        style: TextStyle(
-                          color: AppColors.royalBlueMuted,
+                      Text(
+                        s.dashboardSubtitle,
+                        style: const TextStyle(
+                          color: AppColors.inkMuted,
                           fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -282,6 +335,11 @@ class _HomeViewState extends State<HomeView> {
               ],
             ),
           ),
+
+          if (widget.showSearchBar) ...[
+            _buildSearchBar(context),
+            const SizedBox(height: 14),
+          ],
 
           // 1. Hero Card: Pre-Departure Checklist & CR Status Card
           _buildHeroChecklistCard(),
@@ -304,7 +362,8 @@ class _HomeViewState extends State<HomeView> {
 
   // --- Status badge (greeting header) ---
   Widget _buildStatusBadge() {
-    final status = _status;
+    final s = AppStrings.of(context);
+    final status = _statusFor(s);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -336,6 +395,7 @@ class _HomeViewState extends State<HomeView> {
 
   // --- 1. Hero Card Builder ---
   Widget _buildHeroChecklistCard() {
+    final s = AppStrings.of(context);
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cloudDancer,
@@ -357,7 +417,11 @@ class _HomeViewState extends State<HomeView> {
         children: [
           // Card Header
           InkWell(
-            onTap: widget.onNavigateToCrChecker,
+            onTap: () {
+              setState(() {
+                _isChecklistExpanded = !_isChecklistExpanded;
+              });
+            },
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 12.0),
@@ -369,7 +433,7 @@ class _HomeViewState extends State<HomeView> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Pre-Departure Company & Travel Checklist',
+                          s.checklistTitle,
                           style: const TextStyle(
                             color: AppColors.royalBlue,
                             fontSize: 16,
@@ -408,7 +472,8 @@ class _HomeViewState extends State<HomeView> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '$_completedCount/${_checklist.length} Done',
+                              s.checklistDone(
+                                  _completedCount, _checklist.length),
                               style: TextStyle(
                                 color: _completedCount == _checklist.length
                                     ? AppColors.cloudDancer
@@ -429,20 +494,20 @@ class _HomeViewState extends State<HomeView> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Check your company and documents before you fly',
+                          s.checklistSubtitle,
                           style: TextStyle(
-                            color: AppColors.royalBlueMuted,
+                            color: AppColors.inkMuted,
                             fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Row(
-                        children: const [
+                        children: [
                           Text(
-                            'View Details',
-                            style: TextStyle(
+                            s.viewDetails,
+                            style: const TextStyle(
                               color: AppColors.royalBlue,
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -472,9 +537,9 @@ class _HomeViewState extends State<HomeView> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16.0, 14.0, 16.0, 8.0),
             child: Semantics(
-              label: 'Departure readiness',
+              label: s.departureReadiness,
               // toInt() floors on purpose: never overstate readiness.
-              value: '${(_progressPercent * 100).toInt()} percent',
+              value: '${(_progressPercent * 100).toInt()}%',
               child: ExcludeSemantics(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,18 +547,18 @@ class _HomeViewState extends State<HomeView> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Departure Readiness',
-                          style: TextStyle(
-                            color: AppColors.royalBlueMuted,
+                        Text(
+                          s.departureReadiness,
+                          style: const TextStyle(
+                            color: AppColors.inkMuted,
                             fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                         Text(
                           '${(_progressPercent * 100).toInt()}%',
                           style: const TextStyle(
-                            color: AppColors.royalBlue,
+                            color: AppColors.ink,
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                           ),
@@ -552,8 +617,8 @@ class _HomeViewState extends State<HomeView> {
               ),
               label: Text(
                 _isChecklistExpanded
-                    ? 'Show Fewer Items'
-                    : 'Show All ${_checklist.length} Checklist Items',
+                    ? s.showFewerItems
+                    : s.showAllItems(_checklist.length),
                 style: const TextStyle(
                   color: AppColors.royalBlue,
                   fontSize: 12,
@@ -571,14 +636,16 @@ class _HomeViewState extends State<HomeView> {
   Widget _buildChecklistRow(int index) {
     final item = _checklist[index];
     final isNext = index == _nextIndex;
+    final s = AppStrings.of(context);
+    final text = s.checklist[index];
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Semantics(
         button: true,
         checked: item.isCompleted,
-        label: '${item.title}. ${item.subtitle}',
-        hint: 'Double tap to mark as done',
+        label: '${text.title}. ${text.subtitle}',
+        hint: s.markAsDoneHint,
         onTap: () => _toggleChecklistItem(index),
         excludeSemantics: true,
         child: InkWell(
@@ -637,9 +704,9 @@ class _HomeViewState extends State<HomeView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (isNext) ...[
-                        const Text(
-                          'NEXT STEP',
-                          style: TextStyle(
+                        Text(
+                          s.nextStep,
+                          style: const TextStyle(
                             color: AppColors.royalBlue,
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -649,11 +716,11 @@ class _HomeViewState extends State<HomeView> {
                         const SizedBox(height: 2),
                       ],
                       Text(
-                        item.title,
+                        text.title,
                         style: TextStyle(
                           color: item.isCompleted
-                              ? AppColors.royalBlueMuted
-                              : AppColors.royalBlue,
+                              ? AppColors.inkMuted
+                              : AppColors.ink,
                           fontSize: 13,
                           fontWeight: item.isCompleted
                               ? FontWeight.w500
@@ -663,9 +730,9 @@ class _HomeViewState extends State<HomeView> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        item.subtitle,
+                        text.subtitle,
                         style: const TextStyle(
-                          color: AppColors.royalBlueMuted,
+                          color: AppColors.inkMuted,
                           fontSize: 12,
                         ),
                       ),
@@ -682,253 +749,275 @@ class _HomeViewState extends State<HomeView> {
 
   // --- 2. Auto-Sliding Notice Banner Builder ---
   Widget _buildAutoSlidingNoticeBanner() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final s = AppStrings.of(context);
+    return ListenableBuilder(
+      listenable: _noticeController,
+      builder: (context, _) {
+        final dynamicNotices = _noticeController.latest;
+        final bool hasDynamic = dynamicNotices.isNotEmpty;
+        final int itemCount = hasDynamic ? dynamicNotices.length : _notices.length;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              children: const [
-                Icon(
-                  Icons.campaign_rounded,
-                  color: AppColors.royalBlue,
-                  size: 18,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.campaign_rounded,
+                      color: AppColors.royalBlue,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      s.noticeBoard,
+                      style: const TextStyle(
+                        color: AppColors.royalBlue,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(width: 6),
-                Text(
-                  'Notice Board',
-                  style: TextStyle(
-                    color: AppColors.royalBlue,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                InkWell(
+                  onTap: widget.onNavigateToNotice,
+                  child: Row(
+                    children: [
+                      Text(
+                        s.allNotices,
+                        style: const TextStyle(
+                          color: AppColors.royalBlue,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.royalBlue,
+                        size: 16,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            InkWell(
-              onTap: widget.onNavigateToNotice,
-              child: Row(
-                children: const [
-                  Text(
-                    'All Notices',
-                    style: TextStyle(
-                      color: AppColors.royalBlue,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppColors.royalBlue,
-                    size: 16,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
+            const SizedBox(height: 8),
 
-        // Carousel PageView (auto-slides every 3.5s; person can swipe,
-        // use the arrows / dots, or pause the auto-slide)
-        SizedBox(
-          height: 86,
-          child: PageView.builder(
-            controller: _noticePageController,
-            itemCount: _notices.length,
-            onPageChanged: (index) {
-              setState(() {
-                _currentNoticePage = index;
-              });
-              // A change the timer did not make came from the person (swipe,
-              // arrow or dot): restart the countdown so the auto-slide does
-              // not jump right after their action.
-              if (_autoSlideInFlight) {
-                _autoSlideInFlight = false;
-              } else {
-                _startNoticeAutoScroll();
-              }
-            },
-            itemBuilder: (context, index) {
-              final notice = _notices[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                child: InkWell(
-                  onTap: widget.onNavigateToNotice,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14.0,
-                      vertical: 10.0,
-                    ),
-                    decoration: BoxDecoration(
-                      color: notice.backgroundColor,
+            // Carousel PageView (auto-slides every 3.5s; person can swipe,
+            // use the arrows / dots, or pause the auto-slide)
+            SizedBox(
+              height: 86,
+              child: PageView.builder(
+                controller: _noticePageController,
+                itemCount: itemCount,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentNoticePage = index;
+                  });
+                  // A change the timer did not make came from the person (swipe,
+                  // arrow or dot): restart the countdown so the auto-slide does
+                  // not jump right after their action.
+                  if (_autoSlideInFlight) {
+                    _autoSlideInFlight = false;
+                  } else {
+                    _startNoticeAutoScroll();
+                  }
+                },
+                itemBuilder: (context, index) {
+                  final style = _notices[index % _notices.length];
+                  final String tagText;
+                  final String messageText;
+
+                  if (hasDynamic) {
+                    final notice = dynamicNotices[index];
+                    tagText = notice.sourceName.toUpperCase();
+                    messageText = notice.title;
+                  } else {
+                    final fallbackText = AppStrings.of(context).noticeSlides[index % AppStrings.of(context).noticeSlides.length];
+                    tagText = fallbackText.tag;
+                    messageText = fallbackText.message;
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                    child: InkWell(
+                      onTap: widget.onNavigateToNotice,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: notice.accentColor.withValues(alpha: 0.35),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: notice.accentColor.withValues(alpha: 0.05),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14.0,
+                          vertical: 10.0,
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: notice.accentColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
+                        decoration: BoxDecoration(
+                          color: style.backgroundColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: style.accentColor.withValues(alpha: 0.35),
+                            width: 1.2,
                           ),
-                          child: Icon(
-                            notice.icon,
-                            color: notice.accentColor,
-                            size: 18,
-                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: style.accentColor.withValues(alpha: 0.05),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Row(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: style.accentColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                style.icon,
+                                color: style.accentColor,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text(
-                                    notice.tag,
-                                    style: TextStyle(
-                                      color: notice.accentColor,
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.6,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        tagText,
+                                        style: TextStyle(
+                                          color: style.accentColor,
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.6,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Icon(
+                                        Icons.arrow_forward_ios_rounded,
+                                        size: 9,
+                                        color: style.accentColor,
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 6),
-                                  Icon(
-                                    Icons.arrow_forward_ios_rounded,
-                                    size: 9,
-                                    color: notice.accentColor,
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    messageText,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.ink,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.25,
+                                    ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 3),
-                              Text(
-                                notice.message,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.royalBlue,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.25,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-
-        // Controls: pause/play (left), previous - dots - next (center).
-        // The dots are tappable. The empty box on the right keeps the
-        // dots visually centered.
-        Row(
-          children: [
-            IconButton(
-              onPressed: _toggleNoticeAutoPlay,
-              tooltip: _noticeAutoPlay
-                  ? 'Pause auto-slide'
-                  : 'Resume auto-slide',
-              icon: Icon(
-                _noticeAutoPlay
-                    ? Icons.pause_circle_outline_rounded
-                    : Icons.play_circle_outline_rounded,
-              ),
-              iconSize: 22,
-              color: AppColors.royalBlue,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            ),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: () => _goToNotice(_currentNoticePage - 1),
-                    tooltip: 'Previous notice',
-                    icon: const Icon(Icons.chevron_left_rounded),
-                    iconSize: 24,
-                    color: AppColors.royalBlue,
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 36, minHeight: 36),
-                  ),
-                  ...List.generate(_notices.length, (index) {
-                    final isActive = _currentNoticePage == index;
-                    return GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => _goToNotice(index),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 3,
-                          vertical: 14,
-                        ),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          curve: Curves.easeInOut,
-                          width: isActive ? 20 : 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: isActive
-                                ? AppColors.royalBlue
-                                : AppColors.royalBlue.withValues(alpha: 0.22),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  }),
-                  IconButton(
-                    onPressed: () => _goToNotice(_currentNoticePage + 1),
-                    tooltip: 'Next notice',
-                    icon: const Icon(Icons.chevron_right_rounded),
-                    iconSize: 24,
-                    color: AppColors.royalBlue,
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 36, minHeight: 36),
-                  ),
-                ],
+                    ),
+                  );
+                },
               ),
             ),
-            const SizedBox(width: 36),
+            const SizedBox(height: 8),
+
+            // Controls: pause/play (left), previous - dots - next (center).
+            Row(
+              children: [
+                IconButton(
+                  onPressed: _toggleNoticeAutoPlay,
+                  tooltip: _noticeAutoPlay
+                      ? s.pauseAutoSlide
+                      : s.resumeAutoSlide,
+                  icon: Icon(
+                    _noticeAutoPlay
+                        ? Icons.pause_circle_outline_rounded
+                        : Icons.play_circle_outline_rounded,
+                  ),
+                  iconSize: 22,
+                  color: AppColors.royalBlue,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                ),
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () => _goToNotice(_currentNoticePage - 1),
+                        tooltip: s.previousNotice,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                        iconSize: 24,
+                        color: AppColors.royalBlue,
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 36, minHeight: 36),
+                      ),
+                      ...List.generate(itemCount, (index) {
+                        final isActive = _currentNoticePage == index;
+                        return GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _goToNotice(index),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 3,
+                              vertical: 14,
+                            ),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                              width: isActive ? 20 : 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: isActive
+                                    ? AppColors.royalBlue
+                                    : AppColors.royalBlue.withValues(alpha: 0.22),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                      IconButton(
+                        onPressed: () => _goToNotice(_currentNoticePage + 1),
+                        tooltip: s.nextNotice,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                        iconSize: 24,
+                        color: AppColors.royalBlue,
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 36, minHeight: 36),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 36),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 
   // --- 3. Quick Features Grid (bKash Style) ---
   Widget _buildQuickFeaturesGrid() {
+    final s = AppStrings.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Quick Features',
-          style: TextStyle(
+        Text(
+          s.quickFeatures,
+          style: const TextStyle(
             color: AppColors.royalBlue,
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -944,7 +1033,7 @@ class _HomeViewState extends State<HomeView> {
               child: _QuickFeatureCard(
                 icon: Icons.folder_shared_outlined,
                 iconColor: AppColors.royalBlue,
-                label: 'Saved Documents',
+                label: s.savedDocuments,
                 borderColor: AppColors.royalBlue.withValues(alpha: 0.22),
                 textColor: AppColors.royalBlue,
                 onTap: widget.onOpenSavedDocuments ?? () {},
@@ -957,10 +1046,10 @@ class _HomeViewState extends State<HomeView> {
               child: _QuickFeatureCard(
                 icon: Icons.verified_user_outlined,
                 iconColor: AppColors.royalBlue,
-                label: 'Fraud Checker',
+                label: s.menuFraudChecker,
                 borderColor: AppColors.royalBlue.withValues(alpha: 0.22),
                 textColor: AppColors.royalBlue,
-                onTap: widget.onNavigateToCrChecker ?? () {},
+                onTap: widget.onNavigateToFraudChecker ?? () {},
               ),
             ),
           ],
@@ -976,8 +1065,6 @@ class _QuickFeatureCard extends StatelessWidget {
   final String label;
   final Color borderColor;
   final Color textColor;
-  final Color? backgroundColor;
-  final double iconSize;
   final VoidCallback onTap;
 
   const _QuickFeatureCard({
@@ -986,8 +1073,6 @@ class _QuickFeatureCard extends StatelessWidget {
     required this.label,
     required this.borderColor,
     required this.textColor,
-    this.backgroundColor,
-    this.iconSize = 24,
     required this.onTap,
   });
 
@@ -1002,7 +1087,7 @@ class _QuickFeatureCard extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 92),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-          color: backgroundColor ?? AppColors.cloudDancer,
+          color: AppColors.cloudDancer,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: borderColor,
@@ -1028,7 +1113,7 @@ class _QuickFeatureCard extends StatelessWidget {
               child: Icon(
                 icon,
                 color: iconColor,
-                size: iconSize,
+                size: 24,
               ),
             ),
             const SizedBox(height: 6),

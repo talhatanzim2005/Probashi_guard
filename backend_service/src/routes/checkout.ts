@@ -281,7 +281,7 @@ router.post('/send-money', async (req: Request, res: Response) => {
       }
     );
 
-    return res.status(200).json({
+    return res.status(201).json({
       success: true,
       checkoutUrl: session.url,
       sessionId: session.id,

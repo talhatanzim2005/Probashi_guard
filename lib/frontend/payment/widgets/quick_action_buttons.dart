@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 
 class QuickActionButtons extends StatelessWidget {
@@ -22,7 +23,7 @@ class QuickActionButtons extends StatelessWidget {
           flex: 4,
           child: _ActionPill(
             icon: Icons.north_east_rounded,
-            label: 'Send',
+            label: AppStrings.of(context).send,
             onTap: onSendTap,
           ),
         ),
@@ -33,7 +34,7 @@ class QuickActionButtons extends StatelessWidget {
           flex: 4,
           child: _ActionPill(
             icon: Icons.south_west_rounded,
-            label: 'Receive',
+            label: AppStrings.of(context).receive,
             onTap: onReceiveTap,
           ),
         ),

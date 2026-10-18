@@ -70,7 +70,7 @@ class TipShoiWarningBanner extends StatelessWidget {
                 style: const TextStyle(
                   color: AppColors.cloudDancer,
                   fontSize: 14.5,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   height: 1.4,
                 ),
               ),

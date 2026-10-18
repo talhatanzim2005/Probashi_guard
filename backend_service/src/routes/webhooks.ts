@@ -52,8 +52,11 @@ router.post('/stripe', async (req: Request, res: Response) => {
         console.log(`[Webhooks] Checkout session completed: ${session.id}`, metadata);
 
         const cardId = metadata.cardId || 'card_wps';
-        const amountBdt = Number(metadata.amountBdt || (session.amount_total ? session.amount_total / 100 : 0));
-        const incentiveBdt = Number(metadata.incentiveBdt || 0);
+        // CRITICAL FIX: Derive verified remittance amount strictly from session.amount_total.
+        // Never prioritize client-provided metadata over the cryptographically verified Stripe charge.
+        const amountBdt = session.amount_total ? session.amount_total / 100 : Number(metadata.amountBdt || 0);
+        // Calculate official 2.5% Bangladesh government incentive based on verified amount, not client metadata.
+        const incentiveBdt = Math.round(amountBdt * 0.025 * 100) / 100;
         const sourceAmount = Number(metadata.sourceAmount || amountBdt);
         const sourceCurrency = metadata.sourceCurrency || 'SAR';
         const exchangeRate = Number(metadata.exchangeRate || 1.0);
@@ -106,7 +109,7 @@ router.post('/stripe', async (req: Request, res: Response) => {
               break;
             }
 
-            await fetch(`${supabaseUrl}/rest/v1/transactions`, {
+            const insertRes = await fetch(`${supabaseUrl}/rest/v1/transactions`, {
               method: 'POST',
               headers: {
                 'apikey': supabaseKey,
@@ -115,6 +118,8 @@ router.post('/stripe', async (req: Request, res: Response) => {
                 'Prefer': 'return=minimal',
               },
               body: JSON.stringify({
+                sender_phone: '+8801700000000',
+                receiver_phone: recipientPhone,
                 title: recipientName,
                 subtitle: `Remittance to ${recipientPhone}`,
                 amount_bdt: amountBdt,
@@ -128,6 +133,9 @@ router.post('/stripe', async (req: Request, res: Response) => {
                 created_at: new Date().toISOString(),
               }),
             });
+            if (!insertRes.ok) {
+              console.error('[Webhooks] Supabase transaction insert failed:', insertRes.status, await insertRes.text());
+            }
 
             // Decrement wallet balance in Supabase wallets table
             const walletRes = await fetch(`${supabaseUrl}/rest/v1/wallets?id=eq.${cardId}&select=*`, {

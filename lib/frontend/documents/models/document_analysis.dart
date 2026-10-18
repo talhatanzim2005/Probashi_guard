@@ -387,23 +387,49 @@ class DocumentAnalysis {
   }
 }
 
-/// Response of `POST /api/documents/analyze`.
+/// Response of `POST /api/documents/scan`, `/mrz` and `/save`.
 class DocumentAnalysisResult {
   final DocumentAnalysis analysis;
   final String? documentId;
+
+  /// True once the result is in the vault. A scan comes back false: the worker
+  /// reads it first and decides, and only then does the app call `/save`.
   final bool saved;
+
+  /// The analysis exactly as the backend sent it, which is what `/save` takes
+  /// back. Keeping the raw map means nothing is lost to a re-serialization.
+  final Map<String, dynamic> rawAnalysis;
+
+  /// Hash of the scanned pages and the model that read them, so a saved row
+  /// records the same provenance an auto-saved one did.
+  final String? imageSha256;
+  final String? model;
+
+  /// How many pages the scan covered.
+  final int pages;
 
   const DocumentAnalysisResult({
     required this.analysis,
     required this.documentId,
     required this.saved,
+    this.rawAnalysis = const {},
+    this.imageSha256,
+    this.model,
+    this.pages = 1,
   });
 
-  factory DocumentAnalysisResult.fromMap(Map<String, dynamic> map) => DocumentAnalysisResult(
-        analysis: DocumentAnalysis.fromMap(_toMap(map['analysis'])),
-        documentId: map['document_id'] as String?,
-        saved: map['saved'] == true,
-      );
+  factory DocumentAnalysisResult.fromMap(Map<String, dynamic> map) {
+    final raw = _toMap(map['analysis']);
+    return DocumentAnalysisResult(
+      analysis: DocumentAnalysis.fromMap(raw),
+      documentId: map['document_id'] as String?,
+      saved: map['saved'] == true,
+      rawAnalysis: raw,
+      imageSha256: _toNullableStr(map['image_sha256']),
+      model: _toNullableStr(map['model']),
+      pages: map['pages'] is int && (map['pages'] as int) > 0 ? map['pages'] as int : 1,
+    );
+  }
 }
 
 /// A row of `public.saved_documents`, as shown in the vault.

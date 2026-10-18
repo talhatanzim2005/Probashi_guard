@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:probashi_guard/frontend/documents/document_scan_view.dart';
 import 'package:probashi_guard/frontend/documents/saved_documents_portal_view.dart';
+import 'package:probashi_guard/frontend/menu/app_menu_drawer.dart';
 import 'package:probashi_guard/main.dart';
 import 'package:probashi_guard/widget/bottom_navigation_bar.dart';
 
@@ -31,8 +32,50 @@ void main() {
     expect(find.byType(DocumentScanView), findsOneWidget);
     expect(find.text('Document Scanner'), findsOneWidget);
     // Both document paths are offered: the language choice and the vault.
-    expect(find.text('বাংলা'), findsOneWidget);
+    expect(find.descendant(of: find.byType(DocumentScanView), matching: find.text('বাংলা')), findsOneWidget);
     expect(find.text('Vault'), findsOneWidget);
+  });
+
+  testWidgets('the home screen Fraud Checker shortcut opens the scanner', (tester) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const ProbashiGuardApp());
+    await tester.pumpAndSettle();
+
+    final shortcut = find.text('Fraud Checker');
+    await tester.scrollUntilVisible(shortcut, 300, scrollable: find.byType(Scrollable).first);
+    // Not pumpAndSettle: the camera preview's progress indicator never settles.
+    await tester.tap(shortcut);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(DocumentScanView), findsOneWidget);
+    expect(find.text('Document Scanner'), findsOneWidget);
+  });
+
+  testWidgets('the menu Fraud Checker entry opens the scanner', (tester) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const ProbashiGuardApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.pumpAndSettle();
+    // The home screen behind the drawer has a card by the same name.
+    await tester.tap(find.descendant(
+      of: find.byType(AppMenuDrawer),
+      matching: find.text('Fraud Checker'),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(DocumentScanView), findsOneWidget);
   });
 
   testWidgets('the home screen vault shortcut opens the saved documents portal', (tester) async {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../models/beneficiary_model.dart';
 import '../models/wallet_card_model.dart';
@@ -11,7 +12,7 @@ class SendConfirmStep extends StatelessWidget {
   final String sourceCurrency;
   final double destinationAmount;
   final String destinationCurrency;
-  final Future<void> Function() onConfirmed;
+  final Future<bool> Function() onConfirmed;
 
   const SendConfirmStep({
     super.key,
@@ -26,13 +27,15 @@ class SendConfirmStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Review & Confirm',
-            style: TextStyle(
+          Text(
+            s.reviewAndConfirm,
+            style: const TextStyle(
               color: AppColors.royalBlue,
               fontSize: 20,
               fontWeight: FontWeight.w800,
@@ -41,9 +44,9 @@ class SendConfirmStep extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Please verify recipient and remittance amount carefully',
-            style: TextStyle(
-              color: AppColors.royalBlue.withValues(alpha: 0.6),
+            s.reviewSubtitle,
+            style: const TextStyle(
+              color: AppColors.inkMuted,
               fontSize: 13,
             ),
           ),
@@ -71,9 +74,9 @@ class SendConfirmStep extends StatelessWidget {
               children: [
                 // Highlight Amount Received
                 Text(
-                  'RECIPIENT RECEIVES',
-                  style: TextStyle(
-                    color: AppColors.royalBlue.withValues(alpha: 0.5),
+                  s.recipientReceives,
+                  style: const TextStyle(
+                    color: AppColors.inkMuted,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
@@ -91,12 +94,12 @@ class SendConfirmStep extends StatelessWidget {
                 ),
                 Text(
                   recipient.countryCode == 'BD'
-                      ? 'Govt 2.5% Cash Bonus included'
-                      : 'Guaranteed Cross-Border Settlement to ${recipient.countryName}',
+                      ? s.govtBonusIncluded
+                      : s.guaranteedSettlement(recipient.countryName),
                   style: TextStyle(
                     color: AppColors.emeraldGreen.withValues(alpha: 0.85),
                     fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 Divider(
@@ -105,17 +108,21 @@ class SendConfirmStep extends StatelessWidget {
                 ),
 
                 // Breakdown rows
-                _buildReceiptRow('Recipient', '${recipient.countryFlag} ${recipient.name}'),
-                _buildReceiptRow('Destination Country', '${recipient.countryFlag} ${recipient.countryName}'),
-                _buildReceiptRow('Account / Phone', recipient.phoneOrAccount),
-                _buildReceiptRow('Channel / Provider', recipient.providerType),
+                _buildReceiptRow(s.stepRecipient,
+                    '${recipient.countryFlag} ${recipient.name}'),
+                _buildReceiptRow(s.destinationCountry,
+                    '${recipient.countryFlag} ${recipient.countryName}'),
+                _buildReceiptRow(s.accountOrPhone, recipient.phoneOrAccount),
+                _buildReceiptRow(s.channelProvider, recipient.providerType),
                 _buildReceiptRow(
-                  'Source Deduction',
+                  s.sourceDeduction,
                   '$sourceCurrency ${sourceAmount.toStringAsFixed(2)}',
                 ),
-                _buildReceiptRow('Debited From', '${sourceCard.title} (${sourceCard.cardNumberMasked})'),
-                _buildReceiptRow('Transfer Fee', 'FREE (0.00)', isPositive: true),
-                _buildReceiptRow('Settlement Speed', 'Instant Verified', isPositive: true),
+                _buildReceiptRow(s.debitedFrom,
+                    '${sourceCard.title} (${sourceCard.cardNumberMasked})'),
+                _buildReceiptRow(s.transferFee, s.feeFree, isPositive: true),
+                _buildReceiptRow(s.settlementSpeed, s.instantVerified,
+                    isPositive: true),
               ],
             ),
           ),
@@ -132,18 +139,18 @@ class SendConfirmStep extends StatelessWidget {
                 width: 1,
               ),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.shield_outlined,
                   color: AppColors.royalBlue,
                   size: 20,
                 ),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Protected by Bangladesh Bank Expatriate Remittance Guidelines & Host WPS Guarantee.',
-                    style: TextStyle(
+                    s.remittanceProtectionNote,
+                    style: const TextStyle(
                       color: AppColors.royalBlue,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -158,7 +165,7 @@ class SendConfirmStep extends StatelessWidget {
           // Hold to Confirm Button
           HoldToConfirmButton(
             onConfirmed: onConfirmed,
-            label: 'Hold to Confirm',
+            label: s.holdToConfirm,
           ),
           const SizedBox(height: 12),
         ],
@@ -174,8 +181,8 @@ class SendConfirmStep extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              color: AppColors.royalBlue.withValues(alpha: 0.6),
+            style: const TextStyle(
+              color: AppColors.inkMuted,
               fontSize: 12.5,
               fontWeight: FontWeight.w500,
             ),
@@ -183,7 +190,7 @@ class SendConfirmStep extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: isPositive ? AppColors.emeraldGreen : AppColors.royalBlue,
+              color: isPositive ? AppColors.emeraldGreen : AppColors.ink,
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/payment_controller.dart';
 
@@ -285,7 +286,7 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                 ),
                                 const SizedBox(width: 8),
                                 Semantics(
-                                  label: 'Tap card to switch',
+                                  label: AppStrings.of(context).tapCardToSwitch,
                                   child: Icon(
                                     Icons.layers_outlined,
                                     size: 16,
@@ -305,14 +306,14 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Available Balance',
+                                        AppStrings.of(context).availableBalance,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
                                           color: Colors.white
                                               .withValues(alpha: 0.7),
                                           fontSize: 12.5,
-                                          fontWeight: FontWeight.w500,
+                                          fontWeight: FontWeight.w700,
                                           letterSpacing: 0.2,
                                         ),
                                       ),
@@ -324,8 +325,11 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                       Semantics(
                                         button: !controller.isBalanceVisible,
                                         label: controller.isBalanceVisible
-                                            ? 'Available balance ${controller.formattedActiveBalance}'
-                                            : 'Balance hidden. Double tap to show.',
+                                            ? AppStrings.of(context)
+                                                .balanceShownA11y(controller
+                                                    .formattedActiveBalance)
+                                            : AppStrings.of(context)
+                                                .balanceHiddenA11y,
                                         onTap: controller.isBalanceVisible
                                             ? null
                                             : controller.toggleBalanceVisibility,
@@ -355,7 +359,7 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                                     Alignment.centerLeft,
                                                 children: [
                                                   ...previous,
-                                                  if (current != null) current,
+                                                  ?current,
                                                 ],
                                               ),
                                               child: controller
@@ -403,14 +407,14 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                                         ),
                                                         const SizedBox(
                                                             width: 8),
-                                                        const Flexible(
+                                                        Flexible(
                                                           child: Text(
-                                                            'Tap to see balance',
+                                                            AppStrings.of(context).tapToSeeBalance,
                                                             maxLines: 1,
                                                             overflow:
                                                                 TextOverflow
                                                                     .ellipsis,
-                                                            style: TextStyle(
+                                                            style: const TextStyle(
                                                               color:
                                                                   Colors.white,
                                                               fontSize: 16,
@@ -435,8 +439,8 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                 Semantics(
                                   button: true,
                                   label: controller.isBalanceVisible
-                                      ? 'Hide balance'
-                                      : 'Show balance',
+                                      ? AppStrings.of(context).hideBalance
+                                      : AppStrings.of(context).showBalance,
                                   onTap: controller.toggleBalanceVisibility,
                                   excludeSemantics: true,
                                   child: GestureDetector(

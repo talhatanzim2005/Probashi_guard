@@ -44,13 +44,16 @@ Map<String, dynamic> _sampleResponse({required bool tipShoi}) => {
         ],
         'full_translation': 'মাসিক বেতন: ৮০০ রিয়াল',
       },
-      'document_id': 'doc-123',
-      'saved': true,
+      'document_id': null,
+      'saved': false,
+      'pages': 1,
+      'image_sha256': 'abc123',
+      'model': 'gemini-3.8-flash',
     };
 
 void main() {
   group('DocumentAnalysisRepository', () {
-    test('posts base64 image and language to the backend and parses the result', () async {
+    test('posts base64 pages and language to the backend and parses the result', () async {
       late http.Request captured;
       final client = MockClient((request) async {
         captured = request;
@@ -60,15 +63,17 @@ void main() {
       final repo = DocumentAnalysisRepository(baseUrl: 'http://backend.test', client: client);
 
       final bytes = Uint8List.fromList([0xff, 0xd8, 0xff, 0x00]);
-      final result = await repo.analyze(imageBytes: bytes, language: DocumentLanguage.bangla);
+      final result = await repo.analyze(files: [bytes], language: DocumentLanguage.bangla);
 
       expect(captured.url.toString(), 'http://backend.test/api/documents/scan');
       final body = jsonDecode(captured.body) as Map<String, dynamic>;
       expect(body['language'], 'bn');
-      expect(body['imageBase64'], base64Encode(bytes));
+      expect(body['filesBase64'], [base64Encode(bytes)]);
+      // A scan is never stored on its own: the worker chooses after reading it.
+      expect(body['save'], isFalse);
 
-      expect(result.saved, isTrue);
-      expect(result.documentId, 'doc-123');
+      expect(result.saved, isFalse);
+      expect(result.documentId, isNull);
       expect(result.analysis.tipShoiDetected, isTrue);
       expect(result.analysis.verdict, SigningVerdict.doNotSign);
       expect(result.analysis.salary.risk, RiskLevel.high);
@@ -76,6 +81,137 @@ void main() {
       expect(result.analysis.tipShoiFindings.single.location, 'Page bottom');
       expect(result.analysis.translationSegments, hasLength(2));
       expect(result.analysis.translationSegments[1].isBlank, isTrue);
+    });
+
+    test('sends every page of a multi-page contract as one scan', () async {
+      late http.Request captured;
+      final client = MockClient((request) async {
+        captured = request;
+        return http.Response.bytes(
+          utf8.encode(jsonEncode({..._sampleResponse(tipShoi: false), 'pages': 3})),
+          200,
+        );
+      });
+      final repo = DocumentAnalysisRepository(baseUrl: 'http://backend.test', client: client);
+
+      final pages = [
+        Uint8List.fromList([0xff, 0xd8, 0xff, 0x01]),
+        Uint8List.fromList([0xff, 0xd8, 0xff, 0x02]),
+        Uint8List.fromList([0xff, 0xd8, 0xff, 0x03]),
+      ];
+      final result = await repo.analyze(files: pages, language: DocumentLanguage.english);
+
+      final body = jsonDecode(captured.body) as Map<String, dynamic>;
+      expect(body['filesBase64'], [for (final page in pages) base64Encode(page)]);
+      expect(result.pages, 3);
+    });
+
+    test('rejects more pages than one scan can carry, and pages too large together', () async {
+      var requests = 0;
+      final client = MockClient((_) async {
+        requests++;
+        return http.Response('{}', 200);
+      });
+      final repo = DocumentAnalysisRepository(baseUrl: 'http://backend.test', client: client);
+      final page = Uint8List.fromList([0xff, 0xd8, 0xff, 0x00]);
+
+      await expectLater(
+        repo.analyze(
+          files: List.filled(DocumentAnalysisRepository.maxPages + 1, page),
+          language: DocumentLanguage.english,
+        ),
+        throwsA(isA<DocumentAnalysisException>().having((e) => e.message, 'message', contains('Too many pages'))),
+      );
+      await expectLater(
+        repo.analyze(
+          files: List.filled(3, Uint8List(7 * 1024 * 1024)),
+          language: DocumentLanguage.english,
+        ),
+        throwsA(isA<DocumentAnalysisException>()
+            .having((e) => e.message, 'message', contains('too large together'))),
+      );
+      expect(requests, 0);
+    });
+
+    test('saveAnalysis posts the analysis the backend returned, with its provenance', () async {
+      late http.Request captured;
+      final client = MockClient((request) async {
+        if (request.url.path == '/api/documents/save') {
+          captured = request;
+          return http.Response.bytes(
+            utf8.encode(jsonEncode({
+              ..._sampleResponse(tipShoi: true),
+              'document_id': 'doc-123',
+              'saved': true,
+            })),
+            200,
+          );
+        }
+        return http.Response.bytes(utf8.encode(jsonEncode(_sampleResponse(tipShoi: true))), 200);
+      });
+      final repo = DocumentAnalysisRepository(baseUrl: 'http://backend.test', client: client);
+
+      final scanned = await repo.analyze(
+        files: [Uint8List.fromList([0xff, 0xd8, 0xff, 0x00])],
+        language: DocumentLanguage.bangla,
+      );
+      final saved = await repo.saveAnalysis(result: scanned, language: DocumentLanguage.bangla);
+
+      expect(captured.url.toString(), 'http://backend.test/api/documents/save');
+      final body = jsonDecode(captured.body) as Map<String, dynamic>;
+      expect(body['language'], 'bn');
+      expect(body['image_sha256'], 'abc123');
+      expect(body['model'], 'gemini-3.8-flash');
+      // The analysis goes back exactly as it arrived, so nothing is lost.
+      expect(body['analysis'], _sampleResponse(tipShoi: true)['analysis']);
+      expect(saved.saved, isTrue);
+      expect(saved.documentId, 'doc-123');
+    });
+
+    test('saveAnalysis refuses to post an empty analysis', () async {
+      var requests = 0;
+      final client = MockClient((_) async {
+        requests++;
+        return http.Response('{}', 200);
+      });
+      final repo = DocumentAnalysisRepository(baseUrl: 'http://backend.test', client: client);
+
+      await expectLater(
+        repo.saveAnalysis(
+          result: const DocumentAnalysisResult(
+            analysis: DocumentAnalysis(
+              documentType: null,
+              isLegible: true,
+              salary: SalaryInfo(
+                amount: null,
+                currency: null,
+                period: 'unknown',
+                monthlySarEquivalent: null,
+                risk: RiskLevel.unknown,
+                explanation: '',
+              ),
+              fees: [],
+              feesRisk: RiskLevel.unknown,
+              feesExplanation: '',
+              durationText: '',
+              cancellationText: '',
+              cancellationRisk: RiskLevel.unknown,
+              cancellationExplanation: '',
+              tipShoiDetected: false,
+              tipShoiFindings: [],
+              verdict: SigningVerdict.proceedWithCaution,
+              summary3Lines: [],
+              translationSegments: [],
+              fullTranslation: '',
+            ),
+            documentId: null,
+            saved: false,
+          ),
+          language: DocumentLanguage.english,
+        ),
+        throwsA(isA<DocumentAnalysisException>()),
+      );
+      expect(requests, 0);
     });
 
     test('sends on-device passport fields, not an image, to /api/documents/mrz', () async {
@@ -90,8 +226,8 @@ void main() {
               'identity': {'document_kind': 'passport', 'document_number': 'A01234567'},
               'verdict': 'SAFE_TO_SIGN',
             },
-            'document_id': 'doc-9',
-            'saved': true,
+            'document_id': null,
+            'saved': false,
           })),
           200,
         );
@@ -114,6 +250,7 @@ void main() {
       final body = jsonDecode(captured.body) as Map<String, dynamic>;
       expect(body.containsKey('imageBase64'), isFalse);
       expect(body['language'], 'en');
+      expect(body['save'], isFalse);
       expect(body['mrz'], {
         'document_number': 'A01234567',
         'given_names': 'MOHAMMAD RAHIM',
@@ -133,7 +270,7 @@ void main() {
       final repo = DocumentAnalysisRepository(baseUrl: 'http://backend.test', client: client);
 
       expect(
-        () => repo.analyze(imageBytes: Uint8List(4), language: DocumentLanguage.english),
+        () => repo.analyze(files: [Uint8List(4)], language: DocumentLanguage.english),
         throwsA(isA<DocumentAnalysisException>()
             .having((e) => e.message, 'message', 'Document scanner is not configured on the server.')
             .having((e) => e.retryable, 'retryable', isTrue)),
@@ -152,7 +289,7 @@ void main() {
       );
 
       expect(
-        () => repo.analyze(imageBytes: Uint8List(4), language: DocumentLanguage.english),
+        () => repo.analyze(files: [Uint8List(4)], language: DocumentLanguage.english),
         throwsA(isA<DocumentAnalysisException>()
             .having((e) => e.message, 'message', contains('took more than'))
             .having((e) => e.retryable, 'retryable', isTrue)),
@@ -164,7 +301,7 @@ void main() {
       final repo = DocumentAnalysisRepository(baseUrl: 'http://10.0.2.2:3000', client: client);
 
       expect(
-        () => repo.analyze(imageBytes: Uint8List(4), language: DocumentLanguage.bangla),
+        () => repo.analyze(files: [Uint8List(4)], language: DocumentLanguage.bangla),
         throwsA(isA<DocumentAnalysisException>()
             .having((e) => e.message, 'message', contains('http://10.0.2.2:3000'))
             .having((e) => e.retryable, 'retryable', isTrue)),
@@ -176,7 +313,7 @@ void main() {
       final repo = DocumentAnalysisRepository(baseUrl: 'http://backend.test', client: client);
 
       expect(
-        () => repo.analyze(imageBytes: Uint8List(4), language: DocumentLanguage.english),
+        () => repo.analyze(files: [Uint8List(4)], language: DocumentLanguage.english),
         throwsA(isA<DocumentAnalysisException>()
             .having((e) => e.message, 'message', contains('too large'))
             .having((e) => e.retryable, 'retryable', isFalse)),
@@ -193,7 +330,7 @@ void main() {
 
       await expectLater(
         repo.analyze(
-          imageBytes: Uint8List(DocumentAnalysisRepository.maxImageBytes + 1),
+          files: [Uint8List(DocumentAnalysisRepository.maxImageBytes + 1)],
           language: DocumentLanguage.english,
         ),
         throwsA(isA<DocumentAnalysisException>()),
@@ -277,6 +414,126 @@ void main() {
     expect(find.text('Monthly salary: SAR 800'), findsOneWidget);
     expect(find.text('মাসিক বেতন: ৮০০ রিয়াল'), findsOneWidget);
     expect(find.text('খালি জায়গা'), findsOneWidget);
+  });
+
+  group('a fresh scan is saved only if the worker says so', () {
+    late DocumentAnalysis analysis;
+
+    setUp(() {
+      analysis = DocumentAnalysis.fromMap(
+        _sampleResponse(tipShoi: false)['analysis'] as Map<String, dynamic>,
+      );
+    });
+
+    Future<void> pumpScanResult(
+      WidgetTester tester, {
+      required Future<bool> Function() onSave,
+      String? Function()? saveError,
+    }) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Text('scanner'))));
+      Navigator.push(
+        tester.element(find.text('scanner')),
+        MaterialPageRoute(
+          builder: (_) => DocumentDetailView(
+            analysis: analysis,
+            language: DocumentLanguage.english,
+            saved: false,
+            pages: 2,
+            onSave: onSave,
+            saveError: saveError,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the result is held with a save choice, and saving keeps it', (tester) async {
+      var saveCalls = 0;
+      await pumpScanResult(tester, onSave: () async {
+        saveCalls++;
+        return true;
+      });
+
+      expect(find.text('This result has not been saved yet.'), findsOneWidget);
+      expect(find.text('Save to vault'), findsOneWidget);
+      expect(find.text("Don't save"), findsOneWidget);
+      expect(find.text('2 pages checked together'), findsOneWidget);
+      // The old wording claimed a failure; with a choice pending there is none.
+      expect(find.text('This result was not saved to your document vault.'), findsNothing);
+
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      expect(saveCalls, 1);
+      expect(find.text('Saved to your document vault.'), findsOneWidget);
+      // The choice is made, so the bar is gone and cannot save twice.
+      expect(find.text('Save to vault'), findsNothing);
+      expect(find.text("Don't save"), findsNothing);
+    });
+
+    testWidgets('a failed save keeps the choice open and shows the reason', (tester) async {
+      await pumpScanResult(
+        tester,
+        onSave: () async => false,
+        saveError: () => 'Cannot reach the scanner server.',
+      );
+
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cannot reach the scanner server.'), findsOneWidget);
+      expect(find.text('Save to vault'), findsOneWidget);
+    });
+
+    testWidgets('discarding asks first, then leaves nothing behind', (tester) async {
+      var saveCalls = 0;
+      await pumpScanResult(tester, onSave: () async {
+        saveCalls++;
+        return true;
+      });
+
+      await tester.tap(find.text("Don't save"));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard this result?'), findsOneWidget);
+
+      // Backing out of the dialog leaves the result on screen.
+      await tester.tap(find.text('Keep reading'));
+      await tester.pumpAndSettle();
+      expect(find.text('Save to vault'), findsOneWidget);
+
+      await tester.tap(find.text("Don't save"));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+
+      expect(saveCalls, 0);
+      expect(find.byType(DocumentDetailView), findsNothing);
+      expect(find.text('The result was not saved.'), findsOneWidget);
+    });
+
+    testWidgets('leaving by the back button says the result was not kept', (tester) async {
+      await pumpScanResult(tester, onSave: () async => true);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DocumentDetailView), findsNothing);
+      expect(find.text('The result was not saved.'), findsOneWidget);
+    });
+
+    testWidgets('a document already in the vault offers no save choice', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: DocumentDetailView(analysis: analysis, language: DocumentLanguage.english),
+      ));
+
+      expect(find.text('Save to vault'), findsNothing);
+      expect(find.text('This result has not been saved yet.'), findsNothing);
+    });
   });
 
   testWidgets('Detail view shows identity details for a passport', (tester) async {

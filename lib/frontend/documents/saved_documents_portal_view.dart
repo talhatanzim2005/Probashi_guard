@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
 import 'document_detail_view.dart';
 import 'models/document_analysis.dart';
@@ -48,7 +49,8 @@ class _SavedDocumentsPortalViewState extends State<SavedDocumentsPortalView> {
         foregroundColor: AppColors.royalBlue,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Saved Documents', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: Text(AppStrings.of(context).savedDocuments,
+            style: const TextStyle(fontWeight: FontWeight.w800)),
       ),
       body: RefreshIndicator(
         color: AppColors.royalBlue,
@@ -63,7 +65,7 @@ class _SavedDocumentsPortalViewState extends State<SavedDocumentsPortalView> {
               return _MessageState(
                 icon: Icons.cloud_off_rounded,
                 message: snapshot.error.toString(),
-                actionLabel: 'Try again',
+                actionLabel: AppStrings.of(context).tryAgain,
                 onAction: _refresh,
               );
             }
@@ -129,10 +131,11 @@ class _DocumentCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      a.documentType ?? 'Document',
+                      a.documentType ??
+                          AppStrings.of(context).documentFallbackName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.royalBlue, fontSize: 15, fontWeight: FontWeight.w700),
+                      style: const TextStyle(color: AppColors.ink, fontSize: 15, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -183,7 +186,7 @@ class _MessageState extends StatelessWidget {
         Text(
           message,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.royalBlueMuted, fontSize: 15, height: 1.4),
+          style: const TextStyle(color: AppColors.inkMuted, fontSize: 15, height: 1.4),
         ),
         if (actionLabel != null && onAction != null) ...[
           const SizedBox(height: 16),

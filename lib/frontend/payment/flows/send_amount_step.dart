@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/payment_controller.dart';
 import '../models/beneficiary_model.dart';
@@ -16,6 +17,9 @@ class SendAmountStep extends StatefulWidget {
     required String sourceCurrency,
     required double destinationAmount,
     required String destinationCurrency,
+    required double exchangeRate,
+    required double amountBdt,
+    required double incentiveBdt,
   }) onProceed;
 
   const SendAmountStep({
@@ -110,8 +114,8 @@ class _SendAmountStepState extends State<SendAmountStep> {
     final amount = _enteredAmount;
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter an amount greater than 0'),
+        SnackBar(
+          content: Text(AppStrings.of(context).enterAmountGreaterThanZero),
           backgroundColor: AppColors.crimsonRed,
         ),
       );
@@ -120,8 +124,8 @@ class _SendAmountStepState extends State<SendAmountStep> {
 
     if (_amountInBdt > _selectedCard.balance) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Entered amount exceeds your available card balance'),
+        SnackBar(
+          content: Text(AppStrings.of(context).amountExceedsBalance),
           backgroundColor: AppColors.crimsonRed,
         ),
       );
@@ -134,11 +138,15 @@ class _SendAmountStepState extends State<SendAmountStep> {
       sourceCurrency: _inputCurrency.code,
       destinationAmount: _destinationAmount,
       destinationCurrency: widget.recipient.currency,
+      exchangeRate: _exchangeRate,
+      amountBdt: _amountInBdt,
+      incentiveBdt: _govtIncentive,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
     final cards = widget.controller.cards;
 
     return SingleChildScrollView(
@@ -193,7 +201,7 @@ class _SendAmountStepState extends State<SendAmountStep> {
                           Text(
                             widget.recipient.name,
                             style: const TextStyle(
-                              color: AppColors.royalBlue,
+                              color: AppColors.ink,
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
                             ),
@@ -201,8 +209,8 @@ class _SendAmountStepState extends State<SendAmountStep> {
                           const SizedBox(width: 6),
                           Text(
                             '(${widget.recipient.countryName})',
-                            style: TextStyle(
-                              color: AppColors.royalBlue.withValues(alpha: 0.5),
+                            style: const TextStyle(
+                              color: AppColors.inkMuted,
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),
@@ -211,8 +219,8 @@ class _SendAmountStepState extends State<SendAmountStep> {
                       ),
                       Text(
                         '${widget.recipient.providerType} • ${widget.recipient.phoneOrAccount}',
-                        style: TextStyle(
-                          color: AppColors.royalBlue.withValues(alpha: 0.6),
+                        style: const TextStyle(
+                          color: AppColors.inkMuted,
                           fontSize: 11.5,
                         ),
                       ),
@@ -225,9 +233,9 @@ class _SendAmountStepState extends State<SendAmountStep> {
                     color: AppColors.emeraldGreen.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'Active',
-                    style: TextStyle(
+                  child: Text(
+                    s.active,
+                    style: const TextStyle(
                       color: AppColors.emeraldGreen,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -254,9 +262,9 @@ class _SendAmountStepState extends State<SendAmountStep> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'PAY FROM',
-                  style: TextStyle(
-                    color: AppColors.royalBlue.withValues(alpha: 0.5),
+                  s.payFrom,
+                  style: const TextStyle(
+                    color: AppColors.inkMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
@@ -276,15 +284,16 @@ class _SendAmountStepState extends State<SendAmountStep> {
                             Text(
                               c.title,
                               style: const TextStyle(
-                                color: AppColors.royalBlue,
+                                color: AppColors.ink,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13.5,
                               ),
                             ),
                             Text(
-                              'Avail: ৳${c.balance.toStringAsFixed(0)}',
-                              style: TextStyle(
-                                color: AppColors.royalBlue.withValues(alpha: 0.6),
+                              s.availableShort(
+                                  '৳${c.balance.toStringAsFixed(0)}'),
+                              style: const TextStyle(
+                                color: AppColors.inkMuted,
                                 fontSize: 12,
                               ),
                             ),
@@ -324,9 +333,9 @@ class _SendAmountStepState extends State<SendAmountStep> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  'SEND AMOUNT',
-                  style: TextStyle(
-                    color: AppColors.royalBlue.withValues(alpha: 0.5),
+                  s.sendAmount,
+                  style: const TextStyle(
+                    color: AppColors.inkMuted,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
@@ -342,7 +351,7 @@ class _SendAmountStepState extends State<SendAmountStep> {
                     Text(
                       _inputCurrency.symbol,
                       style: const TextStyle(
-                        color: AppColors.royalBlue,
+                        color: AppColors.ink,
                         fontSize: 32,
                         fontWeight: FontWeight.w800,
                       ),
@@ -355,7 +364,7 @@ class _SendAmountStepState extends State<SendAmountStep> {
                         onChanged: (_) => setState(() {}),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: AppColors.royalBlue,
+                          color: AppColors.ink,
                           fontSize: 36,
                           fontWeight: FontWeight.w900,
                           letterSpacing: -0.5,
@@ -413,11 +422,11 @@ class _SendAmountStepState extends State<SendAmountStep> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Recipient Gets in ${widget.recipient.countryName}:',
-                          style: TextStyle(
-                            color: AppColors.royalBlue.withValues(alpha: 0.7),
+                          s.recipientGetsIn(widget.recipient.countryName),
+                          style: const TextStyle(
+                            color: AppColors.ink,
                             fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -459,8 +468,8 @@ class _SendAmountStepState extends State<SendAmountStep> {
                 Expanded(
                   child: Text(
                     _isRemittanceToBangladesh
-                        ? '1 ${_inputCurrency.code} = ৳${_exchangeRate.toStringAsFixed(2)} • Includes ৳${_govtIncentive.toStringAsFixed(2)} (2.5% Bangladesh Govt Remittance Incentive)'
-                        : '1 ${_inputCurrency.code} = ${widget.recipient.currencySymbol}${_exchangeRate.toStringAsFixed(2)} • Verified Cross-Border Remittance to ${widget.recipient.countryName}',
+                        ? '1 ${_inputCurrency.code} = ৳${_exchangeRate.toStringAsFixed(2)} • ${s.govtIncentive} ৳${_govtIncentive.toStringAsFixed(2)} (2.5%)'
+                        : '1 ${_inputCurrency.code} = ${widget.recipient.currencySymbol}${_exchangeRate.toStringAsFixed(2)} • ${s.guaranteedSettlement(widget.recipient.countryName)}',
                     style: const TextStyle(
                       color: AppColors.emeraldGreen,
                       fontSize: 11,
@@ -511,9 +520,9 @@ class _SendAmountStepState extends State<SendAmountStep> {
               ),
               elevation: 0,
             ),
-            child: const Text(
-              'Review Transfer Details',
-              style: TextStyle(
+            child: Text(
+              s.reviewTransferDetails,
+              style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.2,

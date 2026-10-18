@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/payment_controller.dart';
 import '../models/currency_model.dart';
@@ -75,7 +76,7 @@ class _CurrencyChip extends StatelessWidget {
     return Semantics(
       button: true,
       selected: isSelected,
-      label: 'Display currency $code',
+      label: '${AppStrings.of(context).currency} $code',
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
