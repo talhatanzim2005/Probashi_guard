@@ -16,6 +16,7 @@ import 'l10n/language_controller.dart';
 import 'theme/app_colors.dart';
 import 'widget/app_bar.dart';
 import 'widget/bottom_navigation_bar.dart';
+import 'splash_view.dart';
 
 // Override for another project with:
 //   flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_KEY=...
@@ -34,7 +35,7 @@ Future<void> main() async {
   // flashing English and then switching.
   await LanguageController.instance.load();
   await _initSupabase();
-  runApp(const ProbashiGuardApp());
+  runApp(const SplashGate());
 }
 
 /// The document vault and transaction history are scoped to a Supabase user, so
