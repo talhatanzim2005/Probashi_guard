@@ -208,10 +208,12 @@ class SupabasePaymentRepository implements PaymentRepository {
               currency: record['currency']?.toString() ?? 'BDT',
               timestamp: timestamp,
               type: type,
+              status: TransactionModel.parseStatus(record['status']),
               cardId: record['card_id']?.toString() ?? 'card_wps',
               avatarUrl: record['avatar_url']?.toString(),
               iconCategory: record['icon_category']?.toString() ??
                   (type == TransactionType.receive ? 'person' : 'send'),
+              stripeSessionId: record['stripe_payment_id']?.toString(),
             );
           }).toList();
         }

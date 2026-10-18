@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import '../frontend/home/app_search_view.dart';
 import '../frontend/payment/controllers/payment_controller.dart';
+import '../l10n/app_strings.dart';
 import '../theme/app_colors.dart';
+import 'language_toggle_switch.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onProfileTap;
   final VoidCallback? onMenuTap;
+  final VoidCallback? onSearchTap;
   final ValueChanged<String>? onSearchChanged;
   final TextEditingController? searchController;
   final String? balanceAmount;
@@ -16,6 +20,7 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
     super.key,
     this.onProfileTap,
     this.onMenuTap,
+    this.onSearchTap,
     this.onSearchChanged,
     this.searchController,
     this.balanceAmount,
@@ -108,53 +113,68 @@ class _CustomAppBarState extends State<CustomAppBar> {
     );
   }
 
+  void _onSearchTapped() {
+    if (widget.onSearchTap != null) {
+      widget.onSearchTap!();
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AppSearchView()),
+      );
+    }
+  }
+
   Widget _buildSearchField() {
-    return Container(
-      height: CustomAppBar.kSearchHeight,
-      decoration: BoxDecoration(
-        color: AppColors.cloudDancer,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.royalBlue.withValues(alpha: 0.30),
-          width: 1.2,
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        height: CustomAppBar.kSearchHeight,
+        decoration: BoxDecoration(
+          color: AppColors.cloudDancer,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.royalBlue.withValues(alpha: 0.30),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.royalBlue.withValues(alpha: 0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.royalBlue.withValues(alpha: 0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+        child: TextField(
+          controller: widget.searchController,
+          readOnly: true,
+          onTap: _onSearchTapped,
+          textInputAction: TextInputAction.search,
+          cursorColor: AppColors.royalBlue,
+          style: const TextStyle(
+            color: AppColors.ink,
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
           ),
-        ],
-      ),
-      child: TextField(
-        controller: widget.searchController,
-        onChanged: widget.onSearchChanged,
-        textInputAction: TextInputAction.search,
-        cursorColor: AppColors.royalBlue,
-        style: const TextStyle(
-          color: AppColors.royalBlue,
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-        ),
-        textAlignVertical: TextAlignVertical.center,
-        decoration: const InputDecoration(
-          isDense: true,
-          hintText: 'Search services, agents...',
-          hintStyle: TextStyle(
-            color: AppColors.royalBlueMuted,
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
+          textAlignVertical: TextAlignVertical.center,
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: AppStrings.of(context).searchHint,
+            hintStyle: const TextStyle(
+              color: AppColors.inkMuted,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+            prefixIcon: const Icon(
+              Icons.search_rounded,
+              color: AppColors.royalBlue,
+              size: 22,
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: const EdgeInsets.only(right: 12),
           ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: AppColors.royalBlue,
-            size: 22,
-          ),
-          prefixIconConstraints: BoxConstraints(minWidth: 42, minHeight: 42),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          contentPadding: EdgeInsets.only(right: 12),
         ),
       ),
     );
@@ -171,8 +191,8 @@ class _CustomAppBarState extends State<CustomAppBar> {
         return Semantics(
           button: true,
           label: visible
-              ? 'Balance $effectiveBalance. Double tap to hide.'
-              : 'Balance hidden. Double tap to show.',
+              ? AppStrings.of(context).balanceShownA11y(effectiveBalance)
+              : AppStrings.of(context).balanceHiddenA11y,
           onTap: _toggleBalance,
           excludeSemantics: true,
           child: InkWell(
@@ -231,19 +251,19 @@ class _CustomAppBarState extends State<CustomAppBar> {
                           ),
                         ],
                       )
-                    : const Row(
-                        key: ValueKey('balance-hidden'),
+                    : Row(
+                        key: const ValueKey('balance-hidden'),
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.touch_app_outlined,
                             size: 18,
                             color: AppColors.royalBlue,
                           ),
-                          SizedBox(width: 6),
+                          const SizedBox(width: 6),
                           Text(
-                            'Tap to see balance',
-                            style: TextStyle(
+                            AppStrings.of(context).tapToSeeBalance,
+                            style: const TextStyle(
                               color: AppColors.royalBlue,
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -331,7 +351,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
                   children: [
                     _circleButton(
                       icon: Icons.person_rounded,
-                      label: 'Profile',
+                      label: AppStrings.of(context).menuProfile,
                       onTap: widget.onProfileTap,
                     ),
                     const SizedBox(width: CustomAppBar.kSideSpacing),
@@ -341,14 +361,20 @@ class _CustomAppBarState extends State<CustomAppBar> {
                         children: [
                           _buildSearchField(),
                           const SizedBox(height: CustomAppBar.kBarGap),
-                          _buildBalanceBar(),
+                          Row(
+                            children: [
+                              Expanded(child: _buildBalanceBar()),
+                              const SizedBox(width: 8),
+                              const LanguageToggleSwitch(compact: true),
+                            ],
+                          ),
                         ],
                       ),
                     ),
                     const SizedBox(width: CustomAppBar.kSideSpacing),
                     _circleButton(
                       icon: Icons.menu_rounded,
-                      label: 'Open menu',
+                      label: AppStrings.of(context).openMenu,
                       onTap: widget.onMenuTap,
                     ),
                   ],

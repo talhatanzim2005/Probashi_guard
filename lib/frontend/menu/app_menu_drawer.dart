@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
+import '../../widget/language_toggle_switch.dart';
 
 /// Every place the side menu can send the user.
 /// The parent decides what each one does (Navigator, tab switch, etc.).
@@ -20,21 +22,18 @@ enum MenuDestination {
 }
 
 /// Shared by the menu and the profile screen so logout always asks first.
-Future<bool> confirmLogout(BuildContext context, {bool bangla = false}) async {
+Future<bool> confirmLogout(BuildContext context) async {
+  final s = AppStrings.of(context);
   final result = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text(bangla ? 'লগ আউট করবেন?' : 'Log out?'),
-      content: Text(
-        bangla
-            ? 'অ্যাপ ব্যবহার করতে আপনাকে আবার লগইন করতে হবে।'
-            : 'You will need to sign in again to use the app.',
-      ),
+      title: Text(s.logOutQuestion),
+      content: Text(s.logOutBody),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
-          child: Text(bangla ? 'বাতিল' : 'Cancel'),
+          child: Text(s.cancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
@@ -42,7 +41,7 @@ Future<bool> confirmLogout(BuildContext context, {bool bangla = false}) async {
             foregroundColor: AppColors.cloudDancer,
           ),
           onPressed: () => Navigator.pop(ctx, true),
-          child: Text(bangla ? 'লগ আউট' : 'Log Out'),
+          child: Text(s.logOut),
         ),
       ],
     ),
@@ -53,11 +52,10 @@ Future<bool> confirmLogout(BuildContext context, {bool bangla = false}) async {
 class _MenuEntry {
   final MenuDestination destination;
   final IconData icon;
-  final String en;
-  final String bn;
+  final String label;
   final bool isNew;
 
-  const _MenuEntry(this.destination, this.icon, this.en, this.bn,
+  const _MenuEntry(this.destination, this.icon, this.label,
       {this.isNew = false});
 }
 
@@ -86,40 +84,38 @@ class AppMenuDrawer extends StatelessWidget {
     this.onLanguageChanged,
   });
 
-  bool get _bn => languageCode == 'bn';
+  static List<_MenuEntry> _mainItemsFor(AppStrings s) => [
+        _MenuEntry(MenuDestination.home, Icons.home_outlined, s.menuHome),
+        _MenuEntry(MenuDestination.payment,
+            Icons.account_balance_wallet_outlined, s.menuPayments),
+        _MenuEntry(MenuDestination.fraudChecker, Icons.verified_user_outlined,
+            s.menuFraudChecker),
+        _MenuEntry(
+            MenuDestination.notices, Icons.campaign_outlined, s.menuNotices),
+        _MenuEntry(MenuDestination.complaint,
+            Icons.report_gmailerrorred_outlined, s.menuComplaint),
+        _MenuEntry(MenuDestination.ocrScanner, Icons.document_scanner_outlined,
+            s.menuDocumentScanner,
+            isNew: true),
+        _MenuEntry(MenuDestination.savedDocuments, Icons.folder_shared_outlined,
+            s.menuSavedDocuments),
+      ];
 
-  static const _mainItems = <_MenuEntry>[
-    _MenuEntry(MenuDestination.home, Icons.home_outlined, 'Home', 'হোম'),
-    _MenuEntry(MenuDestination.payment, Icons.account_balance_wallet_outlined,
-        'Payments', 'পেমেন্ট'),
-    _MenuEntry(MenuDestination.fraudChecker, Icons.verified_user_outlined,
-        'Fraud Checker', 'জালিয়াতি যাচাই'),
-    _MenuEntry(MenuDestination.notices, Icons.campaign_outlined, 'Notices',
-        'নোটিশ'),
-    _MenuEntry(MenuDestination.complaint, Icons.report_gmailerrorred_outlined,
-        'File a Complaint', 'অভিযোগ করুন'),
-    _MenuEntry(MenuDestination.ocrScanner, Icons.document_scanner_outlined,
-        'Document Scanner', 'ডকুমেন্ট স্ক্যানার',
-        isNew: true),
-    _MenuEntry(MenuDestination.savedDocuments, Icons.folder_shared_outlined,
-        'Saved Documents', 'সংরক্ষিত ডকুমেন্ট'),
-  ];
-
-  static const _supportItems = <_MenuEntry>[
-    _MenuEntry(MenuDestination.embassyContacts, Icons.phone_in_talk_outlined,
-        'Embassy & Helplines', 'দূতাবাস ও হেল্পলাইন'),
-    _MenuEntry(MenuDestination.helpSupport, Icons.support_agent_outlined,
-        'Help & Support', 'সহায়তা ও সাপোর্ট'),
-    _MenuEntry(MenuDestination.about, Icons.info_outline_rounded,
-        'About the App', 'অ্যাপ সম্পর্কে'),
-    _MenuEntry(MenuDestination.shareApp, Icons.ios_share_rounded, 'Share App',
-        'অ্যাপ শেয়ার করুন'),
-  ];
+  static List<_MenuEntry> _supportItemsFor(AppStrings s) => [
+        _MenuEntry(MenuDestination.embassyContacts,
+            Icons.phone_in_talk_outlined, s.menuEmbassy),
+        _MenuEntry(MenuDestination.helpSupport, Icons.support_agent_outlined,
+            s.menuHelpSupport),
+        _MenuEntry(
+            MenuDestination.about, Icons.info_outline_rounded, s.menuAbout),
+        _MenuEntry(
+            MenuDestination.shareApp, Icons.ios_share_rounded, s.menuShareApp),
+      ];
 
   Future<void> _select(BuildContext context, MenuDestination d) async {
     final nav = Navigator.of(context);
     if (d == MenuDestination.logout) {
-      final ok = await confirmLogout(context, bangla: _bn);
+      final ok = await confirmLogout(context);
       if (!ok) return;
     }
     nav.pop(); // close the drawer
@@ -128,6 +124,8 @@ class AppMenuDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
+
     return Drawer(
       backgroundColor: AppColors.cloudDancer,
       width: MediaQuery.of(context).size.width * 0.84 > 340
@@ -143,14 +141,14 @@ class AppMenuDrawer extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
               children: [
-                ..._mainItems.map((e) => _buildItem(context, e)),
+                ..._mainItemsFor(s).map((e) => _buildItem(context, e)),
                 const _SoftDivider(),
-                ..._supportItems.map((e) => _buildItem(context, e)),
+                ..._supportItemsFor(s).map((e) => _buildItem(context, e)),
                 const _SoftDivider(),
                 _buildItem(
                   context,
-                  const _MenuEntry(MenuDestination.logout,
-                      Icons.logout_rounded, 'Log Out', 'লগ আউট'),
+                  _MenuEntry(
+                      MenuDestination.logout, Icons.logout_rounded, s.logOut),
                   danger: true,
                 ),
               ],
@@ -161,9 +159,9 @@ class AppMenuDrawer extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.only(bottom: 12, top: 4),
               child: Text(
-                _bn ? 'ভার্সন: $appVersion' : 'Version: $appVersion',
+                s.version(appVersion),
                 style: const TextStyle(
-                  color: AppColors.royalBlueMuted,
+                  color: AppColors.inkMuted,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -194,7 +192,7 @@ class AppMenuDrawer extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  _bn ? 'মেনু' : 'Menu',
+                  AppStrings.of(context).menu,
                   style: const TextStyle(
                     color: AppColors.cloudDancer,
                     fontSize: 22,
@@ -203,10 +201,7 @@ class AppMenuDrawer extends StatelessWidget {
                   ),
                 ),
               ),
-              _LanguageToggle(
-                languageCode: languageCode,
-                onChanged: onLanguageChanged,
-              ),
+              const LanguageToggleSwitch(onDarkSurface: true),
             ],
           ),
           const SizedBox(height: 18),
@@ -296,7 +291,7 @@ class AppMenuDrawer extends StatelessWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
-                    _bn ? e.bn : e.en,
+                    e.label,
                     style: TextStyle(
                       color: color,
                       fontSize: 15,
@@ -313,7 +308,7 @@ class AppMenuDrawer extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      _bn ? 'নতুন!' : 'New',
+                      AppStrings.of(context).badgeNew,
                       style: const TextStyle(
                         color: AppColors.emeraldGreen,
                         fontSize: 11,
@@ -340,55 +335,6 @@ class _SoftDivider extends StatelessWidget {
       child: Divider(
         height: 1,
         color: AppColors.royalBlue.withValues(alpha: 0.12),
-      ),
-    );
-  }
-}
-
-class _LanguageToggle extends StatelessWidget {
-  final String languageCode;
-  final ValueChanged<String>? onChanged;
-
-  const _LanguageToggle({required this.languageCode, this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget segment(String code, String label) {
-      final active = languageCode == code;
-      return GestureDetector(
-        onTap: () => onChanged?.call(code),
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: active ? AppColors.cloudDancer : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: active ? AppColors.royalBlue : AppColors.cloudDancer,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: AppColors.cloudDancer.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          segment('en', 'Eng'),
-          segment('bn', 'বাং'),
-        ],
       ),
     );
   }

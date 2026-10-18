@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/payment_controller.dart';
 import '../models/wallet_card_model.dart';
@@ -65,8 +66,8 @@ class _TransferDialogState extends State<TransferDialog> {
     final amount = double.tryParse(_amountController.text.trim()) ?? 0.0;
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid transfer amount'),
+        SnackBar(
+          content: Text(AppStrings.of(context).enterValidTransferAmount),
           backgroundColor: AppColors.crimsonRed,
         ),
       );
@@ -75,8 +76,8 @@ class _TransferDialogState extends State<TransferDialog> {
 
     if (_fromCard.balance < amount) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Insufficient balance on selected source card'),
+        SnackBar(
+          content: Text(AppStrings.of(context).insufficientSourceBalance),
           backgroundColor: AppColors.crimsonRed,
         ),
       );
@@ -110,6 +111,7 @@ class _TransferDialogState extends State<TransferDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
     final cards = widget.controller.cards;
 
     return Dialog(
@@ -124,9 +126,9 @@ class _TransferDialogState extends State<TransferDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Inter-Card Transfer',
-                  style: TextStyle(
+                Text(
+                  s.interCardTransfer,
+                  style: const TextStyle(
                     color: AppColors.royalBlue,
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
@@ -142,7 +144,7 @@ class _TransferDialogState extends State<TransferDialog> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Instant zero-fee transfer between your linked accounts',
+              s.interCardSubtitle,
               style: TextStyle(
                 color: AppColors.royalBlue.withValues(alpha: 0.6),
                 fontSize: 12,
@@ -152,7 +154,7 @@ class _TransferDialogState extends State<TransferDialog> {
 
             // From Card Dropdown Box
             _buildCardSelector(
-              label: 'From Account',
+              label: s.fromAccount,
               current: _fromCard,
               cards: cards,
               onChanged: (c) => setState(() => _fromCard = c!),
@@ -182,7 +184,7 @@ class _TransferDialogState extends State<TransferDialog> {
 
             // To Card Dropdown Box
             _buildCardSelector(
-              label: 'To Account',
+              label: s.toAccount,
               current: _toCard,
               cards: cards,
               onChanged: (c) => setState(() => _toCard = c!),
@@ -255,9 +257,9 @@ class _TransferDialogState extends State<TransferDialog> {
                         color: AppColors.cloudDancer,
                       ),
                     )
-                  : const Text(
-                      'Confirm Transfer',
-                      style: TextStyle(
+                  : Text(
+                      s.confirmTransfer,
+                      style: const TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w700,
                       ),

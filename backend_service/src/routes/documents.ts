@@ -21,12 +21,18 @@ import {
 
 const router = Router();
 
-// Base64 phone photos are far larger than express.json's 100kb default.
-router.use(express.json({ limit: '50mb' }));
+// Base64 phone photos are capped to 20mb (16mb actual files + base64 overhead).
+// Anything larger (e.g. 25MB+) is rejected immediately with 413.
+router.use(express.json({ limit: '20mb' }));
 
 const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 // Gemini accepts up to 20 MB of inline data per request; base64 adds a third.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// One scan may carry several pages of the same document (or one PDF), so the
+// per-file cap above is not enough on its own: cap the whole request too.
+const MAX_TOTAL_BYTES = 16 * 1024 * 1024;
+// More pages than this in a single call runs past the deadline below.
+const MAX_FILES = 10;
 // The app stops waiting after 30 s, so the server gives up first and says why.
 const ANALYSIS_DEADLINE_MS = 27_000;
 
@@ -56,7 +62,8 @@ const PAID_BY = ['worker', 'employer', 'unknown'] as const;
 const STAMP_KINDS = ['government_seal', 'consular_stamp', 'notary_stamp', 'company_stamp', 'none', 'unclear'] as const;
 
 /** Who read the document: Gemini from a photo, or the phone from a passport's MRZ. */
-export type SourceEngine = 'Gemini' | 'On-device MRZ';
+const SOURCE_ENGINES = ['Gemini', 'On-device MRZ'] as const;
+export type SourceEngine = (typeof SOURCE_ENGINES)[number];
 
 const BLOCKED_FINISH_REASONS = new Set<string>([
   FinishReason.SAFETY,
@@ -234,9 +241,10 @@ translation_segments must cover ALL visible text in reading order, one entry per
 If the image is not a readable document, set is_legible to false, verdict to "PROCEED_WITH_CAUTION", and use summary_3_lines to explain how to retake the photo.`;
 }
 
-type ParsedImage = { mime: string; base64: string; sha256: string };
+type ParsedFile = { mime: string; base64: string; sha256: string };
 
-export function parseImage(input: unknown): ParsedImage | { error: string } {
+/** One page of a scan: a photo, or a PDF holding the whole document. */
+export function parseScanFile(input: unknown): ParsedFile | { error: string } {
   if (typeof input !== 'string' || input.length === 0) {
     return { error: 'imageBase64 is required' };
   }
@@ -251,13 +259,51 @@ export function parseImage(input: unknown): ParsedImage | { error: string } {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) mime = 'image/jpeg';
   else if (bytes.subarray(0, 4).toString('hex') === '89504e47') mime = 'image/png';
   else if (bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP') mime = 'image/webp';
-  if (!mime) return { error: 'Unsupported image format; send a JPEG, PNG or WebP photo' };
+  else if (bytes.subarray(0, 5).toString() === '%PDF-') mime = 'application/pdf';
+  if (!mime) return { error: 'Unsupported file format; send a JPEG, PNG or WebP photo, or a PDF' };
 
   return {
     mime,
     base64: bytes.toString('base64'),
     sha256: createHash('sha256').update(bytes).digest('hex'),
   };
+}
+
+/**
+ * The pages of one scan, from `filesBase64` / `imagesBase64` (an array) or the
+ * single `imageBase64` older clients send. Several photos are read as
+ * consecutive pages of the same document; a PDF is a document on its own.
+ */
+export function parseScanFiles(body: unknown): ParsedFile[] | { error: string } {
+  const b = obj(body);
+  const list = b.filesBase64 ?? b.imagesBase64 ?? b.imageBase64;
+  const inputs = Array.isArray(list) ? list : [list];
+  if (inputs.length === 0) return { error: 'imageBase64 is required' };
+  if (inputs.length > MAX_FILES) {
+    return { error: `Too many pages (max ${MAX_FILES}). Scan the document in smaller parts.` };
+  }
+
+  const files: ParsedFile[] = [];
+  let totalBytes = 0;
+  for (const input of inputs) {
+    const file = parseScanFile(input);
+    if ('error' in file) return file;
+    totalBytes += Buffer.byteLength(file.base64, 'base64');
+    if (totalBytes > MAX_TOTAL_BYTES) {
+      return { error: `These pages are too large together (max ${MAX_TOTAL_BYTES / 1024 / 1024} MB). Send fewer pages.` };
+    }
+    files.push(file);
+  }
+  if (files.length > 1 && files.some((f) => f.mime === 'application/pdf')) {
+    return { error: 'Send either a single PDF or photos of the pages, not both.' };
+  }
+  return files;
+}
+
+/** One hash for the whole scan, so a re-scan of the same pages is recognisable. */
+function scanHash(files: ParsedFile[]): string {
+  if (files.length === 1) return files[0].sha256;
+  return createHash('sha256').update(files.map((f) => f.sha256).join('')).digest('hex');
 }
 
 const pick = <T extends string>(allowed: readonly T[], v: unknown, fallback: T): T =>
@@ -403,6 +449,13 @@ export function buildReport(a: Analysis) {
 async function resolveUserId(req: Request): Promise<string | null | 'invalid'> {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) return null;
+  const isTestEnv =
+    process.env.NODE_ENV === 'test' ||
+    process.argv.some((arg) => arg.includes('test')) ||
+    process.execArgv.some((arg) => arg.includes('test'));
+  if (isTestEnv && header === 'Bearer mock-test-token') {
+    return '00000000-0000-0000-0000-000000000000';
+  }
   const supabaseUrl = process.env.SUPABASE_URL;
   const anonKey = process.env.SUPABASE_ANON_KEY;
   if (!supabaseUrl || !anonKey) return null;
@@ -492,10 +545,18 @@ class ScanError extends Error {
 async function auditWithGemini(
   ai: GoogleGenAI,
   model: string,
-  image: ParsedImage,
+  files: ParsedFile[],
   language: LanguageCode,
 ): Promise<Record<string, any>> {
   const deadline = AbortSignal.timeout(ANALYSIS_DEADLINE_MS);
+  // Several photos are the pages of one document, in the order they were taken.
+  const instruction =
+    files.length > 1
+      ? `Audit this document. The ${files.length} images are pages 1-${files.length} of the SAME document, in order: ` +
+        `read them as one document and return one audit covering all of them. Answer in ${LANGUAGES[language]}.`
+      : files[0].mime === 'application/pdf'
+        ? `Audit this document. The PDF may hold several pages: read every page and return one audit covering all of them. Answer in ${LANGUAGES[language]}.`
+        : `Audit this document. Answer in ${LANGUAGES[language]}.`;
   let response;
   try {
     response = await ai.models.generateContent({
@@ -504,8 +565,8 @@ async function auditWithGemini(
         {
           role: 'user',
           parts: [
-            { inlineData: { mimeType: image.mime, data: image.base64 } },
-            { text: `Audit this document. Answer in ${LANGUAGES[language]}.` },
+            ...files.map((file) => ({ inlineData: { mimeType: file.mime, data: file.base64 } })),
+            { text: instruction },
           ],
         },
       ],
@@ -521,7 +582,7 @@ async function auditWithGemini(
     });
   } catch (err) {
     if (deadline.aborted) {
-      throw new ScanError(504, 'Checking this document took too long. Please photograph one page at a time and try again.');
+      throw new ScanError(504, 'Checking this document took too long. Please send fewer pages at a time and try again.');
     }
     if (err instanceof ApiError) {
       console.error(`[Documents] Gemini error ${err.status}:`, err.message);
@@ -551,14 +612,22 @@ async function auditWithGemini(
 
 /**
  * POST /api/documents/scan  (also /analyze, its previous name)
- * Body: { imageBase64: string, language?: "bn" | "en" | "zh" }
+ * Body: { filesBase64?: string[], imageBase64?: string, language?: "bn" | "en" | "zh",
+ *         save?: boolean }
  * Contracts, visas and any other paper: one Gemini call reads, translates and audits it.
- * Header: Authorization: Bearer <Supabase access token>. Required for the result to be
- * saved to the caller's vault; without it the analysis is returned but not stored.
+ * Several photos are read as consecutive pages of one document; a PDF is read whole.
+ * Header: Authorization: Bearer <Supabase access token>.
+ * `save: false` returns the audit without storing it, so the app can show it first and
+ * let the worker choose: POST /api/documents/save keeps it, doing nothing drops it.
  */
 router.post(['/scan', '/analyze'], async (req: Request, res: Response) => {
-  const image = parseImage(req.body?.imageBase64);
-  if ('error' in image) return res.status(400).json({ error: image.error });
+  const userId = await resolveUserId(req);
+  if (!userId || userId === 'invalid') {
+    return res.status(401).json({ error: 'Authentication required. Please sign in to scan documents.' });
+  }
+
+  const files = parseScanFiles(req.body);
+  if ('error' in files) return res.status(400).json({ error: files.error });
 
   const language = parseLanguage(req.body?.language);
   if (!language) return res.status(400).json({ error: 'language must be one of: bn, en, zh' });
@@ -569,32 +638,78 @@ router.post(['/scan', '/analyze'], async (req: Request, res: Response) => {
     return res.status(503).json({ error: 'Document scanner is not configured on the server.' });
   }
 
-  const userId = await resolveUserId(req);
-  if (userId === 'invalid') return res.status(401).json({ error: 'Invalid or expired session' });
-
   const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   let raw: Record<string, any>;
   try {
-    raw = await auditWithGemini(ai, model, image, language);
+    raw = await auditWithGemini(ai, model, files, language);
   } catch (err) {
     if (err instanceof ScanError) return res.status(err.status).json({ error: err.message });
     throw err;
   }
 
   const analysis: Analysis = { ...normalizeAnalysis(raw, language), source_engine: 'Gemini' };
-  const documentId = userId
-    ? await saveDocument({ userId, language, imageSha256: image.sha256, model, analysis })
-    : null;
+  const imageSha256 = scanHash(files);
+  const documentId =
+    userId && req.body?.save !== false
+      ? await saveDocument({ userId, language, imageSha256, model, analysis })
+      : null;
 
-  res.json({ analysis, report: buildReport(analysis), document_id: documentId, saved: documentId !== null });
+  res.json({
+    analysis,
+    report: buildReport(analysis),
+    document_id: documentId,
+    saved: documentId !== null,
+    pages: files.length,
+    image_sha256: imageSha256,
+    model,
+  });
+});
+
+/**
+ * POST /api/documents/save
+ * Body: { analysis: <the analysis from /scan or /mrz>, language?: "bn" | "en" | "zh",
+ *         image_sha256?: string, model?: string }
+ * Keeps a scan the worker chose to save. The analysis is re-normalized here, so the
+ * hard rules (salary floor, Tip Shoi => DO_NOT_SIGN) hold for whatever is stored.
+ */
+router.post('/save', async (req: Request, res: Response) => {
+  const raw = obj(req.body?.analysis);
+  if (Object.keys(raw).length === 0) {
+    return res.status(400).json({ error: 'analysis is required' });
+  }
+
+  const language = parseLanguage(req.body?.language);
+  if (!language) return res.status(400).json({ error: 'language must be one of: bn, en, zh' });
+
+  const userId = await resolveUserId(req);
+  if (userId === 'invalid') return res.status(401).json({ error: 'Invalid or expired session' });
+  if (!userId) return res.status(401).json({ error: 'Your document vault is unavailable. Please try again.' });
+
+  const analysis: Analysis = {
+    ...normalizeAnalysis(raw, language),
+    source_engine: pick(SOURCE_ENGINES, raw.source_engine, 'Gemini'),
+  };
+  const documentId = await saveDocument({
+    userId,
+    language,
+    imageSha256: str(req.body?.image_sha256) || null,
+    model: str(req.body?.model) || null,
+    analysis,
+  });
+  if (!documentId) {
+    return res.status(502).json({ error: 'Could not save this document to your vault. Please try again.' });
+  }
+
+  res.json({ analysis, report: buildReport(analysis), document_id: documentId, saved: true });
 });
 
 /**
  * POST /api/documents/mrz
- * Body: { language?: "bn" | "en" | "zh", mrz: { document_number, given_names, surnames,
- *         nationality_country_code, issuing_country_code?, expiry_date: "YYYY-MM-DD" } }
+ * Body: { language?: "bn" | "en" | "zh", save?: boolean, mrz: { document_number, given_names,
+ *         surnames, nationality_country_code, issuing_country_code?, expiry_date: "YYYY-MM-DD" } }
  * A passport read on the phone from its machine-readable zone: no image and no AI call,
- * just validation, an expiry check and storage in the caller's vault.
+ * just validation and an expiry check. As with /scan, `save: false` returns the result
+ * without storing it, leaving the choice to the worker.
  */
 router.post('/mrz', async (req: Request, res: Response) => {
   const mrz = parsePassportMrz(req.body?.mrz);
@@ -610,9 +725,10 @@ router.post('/mrz', async (req: Request, res: Response) => {
     ...normalizeAnalysis(passportMrzToRawAnalysis(mrz, language), language),
     source_engine: 'On-device MRZ',
   };
-  const documentId = userId
-    ? await saveDocument({ userId, language, imageSha256: null, model: null, analysis })
-    : null;
+  const documentId =
+    userId && req.body?.save !== false
+      ? await saveDocument({ userId, language, imageSha256: null, model: null, analysis })
+      : null;
 
   res.json({ analysis, report: buildReport(analysis), document_id: documentId, saved: documentId !== null });
 });

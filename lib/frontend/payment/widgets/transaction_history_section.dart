@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/payment_controller.dart';
 import '../models/transaction_model.dart';
@@ -15,6 +16,7 @@ class TransactionHistorySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
     final transactions = controller.transactions;
 
     return Container(
@@ -41,9 +43,9 @@ class TransactionHistorySection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Transaction History',
-                style: TextStyle(
+              Text(
+                s.transactionHistory,
+                style: const TextStyle(
                   color: AppColors.royalBlue,
                   fontSize: 16.5,
                   fontWeight: FontWeight.w800,
@@ -55,9 +57,9 @@ class TransactionHistorySection extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                   child: Text(
-                    'See all',
-                    style: TextStyle(
-                      color: AppColors.royalBlue.withValues(alpha: 0.75),
+                    s.seeAll,
+                    style: const TextStyle(
+                      color: AppColors.royalBlue,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
@@ -73,9 +75,9 @@ class TransactionHistorySection extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 24.0),
               child: Center(
                 child: Text(
-                  'No transactions recorded yet',
-                  style: TextStyle(
-                    color: AppColors.royalBlue.withValues(alpha: 0.5),
+                  s.noTransactionsYet,
+                  style: const TextStyle(
+                    color: AppColors.inkMuted,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
@@ -125,20 +127,31 @@ class _TransactionTile extends StatelessWidget {
               Text(
                 tx.title,
                 style: const TextStyle(
-                  color: AppColors.royalBlue,
+                  color: AppColors.ink,
                   fontSize: 14.5,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.1,
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                tx.subtitle,
-                style: TextStyle(
-                  color: AppColors.royalBlue.withValues(alpha: 0.55),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+              Row(
+                children: [
+                  if (tx.isPending || tx.isFailed) ...[
+                    _StatusChip(isPending: tx.isPending),
+                    const SizedBox(width: 6),
+                  ],
+                  Expanded(
+                    child: Text(
+                      tx.subtitle,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.inkMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -151,7 +164,9 @@ class _TransactionTile extends StatelessWidget {
             Text(
               '${isIncome ? '+' : '-'}${_getCurrencySymbol(tx.currency)}${tx.amount.toStringAsFixed(tx.amount.truncateToDouble() == tx.amount ? 0 : 2)}',
               style: TextStyle(
-                color: isIncome ? AppColors.emeraldGreen : const Color(0xFF1E2430),
+                color: tx.isPending
+                    ? AppColors.inkMuted
+                    : (isIncome ? AppColors.emeraldGreen : AppColors.ink),
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.2,
@@ -159,9 +174,9 @@ class _TransactionTile extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              _formatDate(tx.timestamp),
-              style: TextStyle(
-                color: AppColors.royalBlue.withValues(alpha: 0.5),
+              _formatDate(AppStrings.of(context), tx.timestamp),
+              style: const TextStyle(
+                color: AppColors.inkMuted,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
@@ -204,6 +219,16 @@ class _TransactionTile extends StatelessWidget {
         bgColor = iconColor.withValues(alpha: 0.12);
     }
 
+    if (tx.isPending) {
+      iconData = Icons.hourglass_top_rounded;
+      iconColor = AppColors.royalBlue;
+      bgColor = AppColors.royalBlue.withValues(alpha: 0.08);
+    } else if (tx.isFailed) {
+      iconData = Icons.error_outline_rounded;
+      iconColor = AppColors.crimsonRed;
+      bgColor = AppColors.crimsonRed.withValues(alpha: 0.12);
+    }
+
     return Container(
       width: 42,
       height: 42,
@@ -242,19 +267,51 @@ class _TransactionTile extends StatelessWidget {
     }
   }
 
-  String _formatDate(DateTime dt) {
+  String _formatDate(AppStrings s, DateTime dt) {
     final now = DateTime.now();
     final difference = now.difference(dt);
 
     if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
+      return s.minutesAgo(difference.inMinutes);
     } else if (difference.inHours < 24) {
       final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
       final period = dt.hour >= 12 ? 'PM' : 'AM';
       final minute = dt.minute.toString().padLeft(2, '0');
-      return '$hour:$minute $period - Today';
+      return s.todayAt('$hour:$minute $period');
     } else {
       return '${dt.day}/${dt.month}/${dt.year}';
     }
+  }
+}
+
+/// Marks a remittance that Stripe has not settled yet, or one that failed.
+class _StatusChip extends StatelessWidget {
+  final bool isPending;
+
+  const _StatusChip({required this.isPending});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isPending ? AppColors.royalBlue : AppColors.crimsonRed;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
+      ),
+      child: Text(
+        isPending
+            ? AppStrings.of(context).statusPending
+            : AppStrings.of(context).statusFailed,
+        style: TextStyle(
+          color: color,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
   }
 }

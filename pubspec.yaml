@@ -31,10 +31,28 @@ dependencies:
   flutter_skill: ^0.2.6
   flutter:
     sdk: flutter
+  # Ships Material/Cupertino/Widgets translations for Bangla, which the stock
+  # DefaultMaterialLocalizations does not cover (English only).
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  http: ^1.2.2
+  supabase_flutter: ^2.8.0
+  image_picker: ^1.2.4
+  camera: ^0.12.1
+  passport_scanner: ^1.1.1
+  mrz_parser: ^2.0.1
+  # Opens the Stripe hosted Checkout page in the device browser.
+  url_launcher: ^6.3.3
+  # Remembers the chosen app language (Bangla / English) across launches.
+  shared_preferences: ^2.5.6
+  # Keeps notice thumbnails on disk so the feed does not re-fetch them on scroll.
+  cached_network_image: ^3.4.1
+  # Picking a PDF of a contract: image_picker only offers photos.
+  file_picker: ^13.1.0
 
 dev_dependencies:
   flutter_test:

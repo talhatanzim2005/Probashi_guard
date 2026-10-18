@@ -6,13 +6,27 @@ import 'widgets/tip_shoi_warning_banner.dart';
 /// Full audit of one document: Tip Shoi warning, verdict, 3-line summary,
 /// identity details (passports/visas), an accordion of extracted terms, and a
 /// side-by-side translation.
-class DocumentDetailView extends StatelessWidget {
+///
+/// A fresh scan arrives unsaved: pass [onSave] and the worker reads the audit
+/// first, then chooses whether it goes into the vault.
+class DocumentDetailView extends StatefulWidget {
   final DocumentAnalysis analysis;
   final DocumentLanguage language;
 
-  /// False when the backend couldn't store the result in the vault.
+  /// False when the result is not in the vault: either the worker has not
+  /// chosen yet ([onSave] set) or the backend could not store it.
   final bool saved;
   final DateTime? scannedAt;
+
+  /// How many pages this audit covered.
+  final int pages;
+
+  /// Keeps this result in the vault; returns false if the save failed, with its
+  /// reason in [saveError]. When null, no choice is offered (a vault document).
+  final Future<bool> Function()? onSave;
+
+  /// Reason the last [onSave] failed, read after it returns false.
+  final String? Function()? saveError;
 
   const DocumentDetailView({
     super.key,
@@ -20,10 +34,106 @@ class DocumentDetailView extends StatelessWidget {
     required this.language,
     this.saved = true,
     this.scannedAt,
+    this.pages = 1,
+    this.onSave,
+    this.saveError,
   });
 
   @override
+  State<DocumentDetailView> createState() => _DocumentDetailViewState();
+}
+
+class _DocumentDetailViewState extends State<DocumentDetailView> {
+  late bool _saved = widget.saved;
+  bool _saving = false;
+
+  /// Set while _discard() pops, which says so itself: without this, leaving the
+  /// screen would announce it twice.
+  bool _discarding = false;
+
+  /// The choice is pending until the worker saves: dropping the result needs no
+  /// request, because an unsaved scan was never stored in the first place.
+  bool get _choicePending => widget.onSave != null && !_saved;
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final ok = await widget.onSave!();
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _saved = ok;
+    });
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? _savedToast[widget.language]!
+            : widget.saveError?.call() ?? _saveFailedToast[widget.language]!),
+        backgroundColor: ok ? AppColors.emeraldGreen : AppColors.crimsonRed,
+      ),
+    );
+  }
+
+  Future<void> _discard() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cloudDancer,
+        title: Text(
+          _discardTitle[widget.language]!,
+          style: const TextStyle(color: AppColors.royalBlue, fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          _discardBody[widget.language]!,
+          style: const TextStyle(color: AppColors.inkMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              _keepReading[widget.language]!,
+              style: const TextStyle(color: AppColors.royalBlue, fontWeight: FontWeight.w700),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              _discardConfirm[widget.language]!,
+              style: const TextStyle(color: AppColors.crimsonRed, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    _discarding = true;
+    Navigator.pop(context);
+    _announceNotSaved();
+  }
+
+  void _announceNotSaved() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_discardedToast[widget.language]!),
+        backgroundColor: AppColors.royalBlue,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return PopScope(
+      // Going back keeps nothing, which is easy to mistake for a save: say so.
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop && _choicePending && !_discarding) _announceNotSaved();
+      },
+      child: _buildScreen(context),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -34,7 +144,7 @@ class DocumentDetailView extends StatelessWidget {
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           title: Text(
-            analysis.documentType ?? 'Document',
+            widget.analysis.documentType ?? 'Document',
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
           ),
           bottom: const TabBar(
@@ -50,10 +160,163 @@ class DocumentDetailView extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            _OverviewTab(analysis: analysis, language: language, saved: saved, scannedAt: scannedAt),
-            _TranslationTab(analysis: analysis, language: language),
+            _OverviewTab(
+              analysis: widget.analysis,
+              language: widget.language,
+              saved: _saved,
+              choicePending: _choicePending,
+              scannedAt: widget.scannedAt,
+              pages: widget.pages,
+            ),
+            _TranslationTab(analysis: widget.analysis, language: widget.language),
           ],
         ),
+        bottomNavigationBar: _choicePending
+            ? _SaveChoiceBar(
+                language: widget.language,
+                saving: _saving,
+                onSave: _save,
+                onDiscard: _discard,
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+const _savedToast = {
+  DocumentLanguage.bangla: 'নথি আপনার ভল্টে সংরক্ষণ করা হয়েছে।',
+  DocumentLanguage.english: 'Saved to your document vault.',
+  DocumentLanguage.chinese: '已保存到您的文件保险库。',
+};
+
+const _saveFailedToast = {
+  DocumentLanguage.bangla: 'সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+  DocumentLanguage.english: 'Could not save it. Please try again.',
+  DocumentLanguage.chinese: '保存失败，请重试。',
+};
+
+const _discardTitle = {
+  DocumentLanguage.bangla: 'ফলাফল মুছে ফেলবেন?',
+  DocumentLanguage.english: 'Discard this result?',
+  DocumentLanguage.chinese: '放弃此结果？',
+};
+
+const _discardBody = {
+  DocumentLanguage.bangla: 'এটি ভল্টে থাকবে না। আবার দেখতে চাইলে নথিটি আবার স্ক্যান করতে হবে।',
+  DocumentLanguage.english: 'It will not be kept in your vault. To see it again you will have to scan the document again.',
+  DocumentLanguage.chinese: '它不会保存在保险库中。若要再次查看，需重新扫描该文件。',
+};
+
+const _keepReading = {
+  DocumentLanguage.bangla: 'পড়া চালিয়ে যান',
+  DocumentLanguage.english: 'Keep reading',
+  DocumentLanguage.chinese: '继续阅读',
+};
+
+const _discardConfirm = {
+  DocumentLanguage.bangla: 'মুছে ফেলুন',
+  DocumentLanguage.english: 'Discard',
+  DocumentLanguage.chinese: '放弃',
+};
+
+const _discardedToast = {
+  DocumentLanguage.bangla: 'ফলাফল সংরক্ষণ করা হয়নি।',
+  DocumentLanguage.english: 'The result was not saved.',
+  DocumentLanguage.chinese: '结果未保存。',
+};
+
+const _saveLabel = {
+  DocumentLanguage.bangla: 'ভল্টে সংরক্ষণ করুন',
+  DocumentLanguage.english: 'Save to vault',
+  DocumentLanguage.chinese: '保存到保险库',
+};
+
+const _dontSaveLabel = {
+  DocumentLanguage.bangla: 'সংরক্ষণ করবেন না',
+  DocumentLanguage.english: "Don't save",
+  DocumentLanguage.chinese: '不保存',
+};
+
+const _choiceHint = {
+  DocumentLanguage.bangla: 'এই ফলাফল এখনো সংরক্ষণ করা হয়নি।',
+  DocumentLanguage.english: 'This result has not been saved yet.',
+  DocumentLanguage.chinese: '此结果尚未保存。',
+};
+
+/// Save or drop a fresh scan. Nothing reaches the vault until "Save" is tapped,
+/// so a worker reading a contract in a recruiter's office can leave no trace.
+class _SaveChoiceBar extends StatelessWidget {
+  final DocumentLanguage language;
+  final bool saving;
+  final VoidCallback onSave;
+  final VoidCallback onDiscard;
+
+  const _SaveChoiceBar({
+    required this.language,
+    required this.saving,
+    required this.onSave,
+    required this.onDiscard,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
+      decoration: BoxDecoration(
+        color: AppColors.cloudDancer,
+        border: Border(top: BorderSide(color: AppColors.royalBlue.withValues(alpha: 0.16), width: 1.2)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _choiceHint[language]!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: saving ? null : onDiscard,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.royalBlue,
+                    side: BorderSide(color: AppColors.royalBlue.withValues(alpha: 0.4)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text(
+                    _dontSaveLabel[language]!,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: saving ? null : onSave,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.royalBlue,
+                    foregroundColor: AppColors.cloudDancer,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.cloudDancer),
+                        )
+                      : const Icon(Icons.save_rounded, size: 20),
+                  label: Text(
+                    _saveLabel[language]!,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -63,13 +326,19 @@ class _OverviewTab extends StatelessWidget {
   final DocumentAnalysis analysis;
   final DocumentLanguage language;
   final bool saved;
+
+  /// The save/discard bar is up, so it speaks for the unsaved state.
+  final bool choicePending;
   final DateTime? scannedAt;
+  final int pages;
 
   const _OverviewTab({
     required this.analysis,
     required this.language,
     required this.saved,
+    required this.choicePending,
     required this.scannedAt,
+    required this.pages,
   });
 
   @override
@@ -80,7 +349,7 @@ class _OverviewTab extends StatelessWidget {
         a.fees.isNotEmpty ||
         a.durationText.isNotEmpty ||
         a.cancellationText.isNotEmpty;
-    const footnoteStyle = TextStyle(color: AppColors.royalBlueMuted, fontSize: 12.5);
+    const footnoteStyle = TextStyle(color: AppColors.inkMuted, fontSize: 12.5);
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
@@ -121,8 +390,10 @@ class _OverviewTab extends StatelessWidget {
           ),
         ],
         if (scannedAt != null) Text('Scanned ${_formatDate(scannedAt!)}', style: footnoteStyle),
+        if (pages > 1) Text('$pages pages checked together', style: footnoteStyle),
         if (a.sourceEngine != null) Text('Read by ${a.sourceEngine}', style: footnoteStyle),
-        if (!saved) const Text('This result was not saved to your document vault.', style: footnoteStyle),
+        if (!saved && !choicePending)
+          const Text('This result was not saved to your document vault.', style: footnoteStyle),
       ],
     );
   }
@@ -167,7 +438,7 @@ class _TranslationTab extends StatelessWidget {
         children: [
           SelectableText(
             analysis.fullTranslation.isEmpty ? 'No translation available.' : analysis.fullTranslation,
-            style: const TextStyle(color: AppColors.royalBlue, fontSize: 15, height: 1.5),
+            style: const TextStyle(color: AppColors.ink, fontSize: 15, height: 1.5),
           ),
         ],
       );
@@ -250,7 +521,7 @@ class _SegmentRow extends StatelessWidget {
         Expanded(
           child: SelectableText(
             segment.original,
-            style: const TextStyle(color: AppColors.royalBlueMuted, fontSize: 14, height: 1.45),
+            style: const TextStyle(color: AppColors.inkMuted, fontSize: 14, height: 1.45),
           ),
         ),
         const SizedBox(width: 12),
@@ -258,7 +529,7 @@ class _SegmentRow extends StatelessWidget {
           child: SelectableText(
             segment.translated,
             style: const TextStyle(
-              color: AppColors.royalBlue,
+              color: AppColors.ink,
               fontSize: 14.5,
               fontWeight: FontWeight.w600,
               height: 1.45,
@@ -332,8 +603,8 @@ class _IdentityCard extends StatelessWidget {
       true => authenticity.stampKindLabel ?? _visible(true),
       final present => _visible(present),
     };
-    const labelStyle = TextStyle(color: AppColors.royalBlueMuted, fontSize: 13.5);
-    const valueStyle = TextStyle(color: AppColors.royalBlue, fontSize: 14.5, fontWeight: FontWeight.w700);
+    const labelStyle = TextStyle(color: AppColors.inkMuted, fontSize: 13.5);
+    const valueStyle = TextStyle(color: AppColors.ink, fontSize: 14.5, fontWeight: FontWeight.w700);
 
     Widget row(String label, String value) => Padding(
           padding: const EdgeInsets.only(bottom: 6),
@@ -384,7 +655,7 @@ class _IdentityCard extends StatelessWidget {
             readOnDevice
                 ? 'A valid code shows the details were read correctly. It cannot prove the passport is genuine.'
                 : 'This checks only what is visible in the photo. It cannot prove the document is genuine.',
-            style: const TextStyle(color: AppColors.royalBlueMuted, fontSize: 12, fontStyle: FontStyle.italic),
+            style: const TextStyle(color: AppColors.inkMuted, fontSize: 12, fontStyle: FontStyle.italic),
           ),
         ],
       ),
@@ -469,7 +740,7 @@ class _TermSectionState extends State<_TermSection> {
         width: 1.2,
       ),
     );
-    const valueStyle = TextStyle(color: AppColors.royalBlue, fontSize: 15, fontWeight: FontWeight.w600, height: 1.4);
+    const valueStyle = TextStyle(color: AppColors.ink, fontSize: 15, fontWeight: FontWeight.w600, height: 1.4);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -507,7 +778,7 @@ class _TermSectionState extends State<_TermSection> {
             const SizedBox(height: 4),
             Text(
               widget.explanation,
-              style: const TextStyle(color: AppColors.royalBlueMuted, fontSize: 14, height: 1.4),
+              style: const TextStyle(color: AppColors.inkMuted, fontSize: 14, height: 1.4),
             ),
           ],
         ],

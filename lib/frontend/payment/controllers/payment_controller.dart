@@ -7,8 +7,8 @@ import '../models/beneficiary_model.dart';
 import '../models/currency_model.dart';
 import '../models/transaction_model.dart';
 import '../models/wallet_card_model.dart';
-import '../repository/mock_payment_repository.dart';
 import '../repository/payment_repository.dart';
+import '../repository/supabase_payment_repository.dart';
 
 class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
   static final PaymentController instance = PaymentController._internal();
@@ -17,11 +17,18 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
   final PaymentRepository _repository;
 
   PaymentController._internal({PaymentRepository? repository})
-      : _repository = repository ?? MockPaymentRepository() {
+      : _repository = repository ?? SupabasePaymentRepository() {
     // Lets us hide the balance when the app leaves the foreground.
     WidgetsFlutterBinding.ensureInitialized().addObserver(this);
     _loadInitialSync();
     init();
+  }
+
+  /// For tests and for pointing the wallet at a different backend.
+  @visibleForTesting
+  PaymentController.withRepository(PaymentRepository repository)
+      : _repository = repository {
+    _loadInitialSync();
   }
 
   bool _isLoading = false;
@@ -35,6 +42,9 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
 
   List<TransactionModel> _transactions = [];
   List<TransactionModel> get transactions => _transactions;
+
+  String _walletHolderName = 'Probashi Expatriate Worker';
+  String get walletHolderName => _walletHolderName;
 
   int _activeCardIndex = 0;
   int get activeCardIndex => _activeCardIndex;
@@ -108,11 +118,13 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
         _repository.getCards(),
         _repository.getBeneficiaries(),
         _repository.getTransactions(),
+        _repository.getWalletHolderName(),
       ]);
 
       _cards = results[0] as List<WalletCardModel>;
       _beneficiaries = results[1] as List<BeneficiaryModel>;
       _transactions = results[2] as List<TransactionModel>;
+      _walletHolderName = results[3] as String;
     } catch (e) {
       debugPrint('Error loading payment data: $e');
     } finally {
@@ -234,36 +246,170 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
     return '$formattedInt.$decimalPart';
   }
 
-  Future<bool> sendMoney({
+  // ---------------------------------------------------------------------------
+  // Remittance. Stripe Checkout is a hosted page, so sending money is a
+  // three-phase sequence rather than a single call. See [PaymentRepository].
+  // ---------------------------------------------------------------------------
+
+  /// Phase 1 — opens a Checkout session and returns its payload, which carries
+  /// the `checkoutUrl` the caller opens in the browser.
+  ///
+  /// A pending row goes into [transactions] straight away, so the transfer is
+  /// visible while the person is still on Stripe's page. Throws a
+  /// `Payment Gateway Error` when no session could be created; nothing has been
+  /// charged in that case.
+  Future<Map<String, dynamic>?> sendMoneyWithResult({
     required BeneficiaryModel recipient,
     required double sourceAmount,
     required String sourceCurrency,
-    required double destinationAmount,
-    required String destinationCurrency,
+    required double exchangeRate,
+    required double amountBdt,
+    required double incentiveBdt,
+    String? connectedAccountId,
+    String? pendingSubtitle,
   }) async {
     final card = activeCard;
-    if (card == null) return false;
+    if (card == null) {
+      throw Exception('Payment Gateway Error: No source card is selected.');
+    }
 
+    final session = await _repository.executeSendMoney(
+      cardId: card.id,
+      beneficiary: recipient,
+      sourceAmount: sourceAmount,
+      sourceCurrency: sourceCurrency,
+      exchangeRate: exchangeRate,
+      amountBdt: amountBdt,
+      incentiveBdt: incentiveBdt,
+      connectedAccountId: connectedAccountId,
+    );
+
+    final sessionId = session['sessionId']?.toString() ?? '';
+    if (sessionId.isNotEmpty) {
+      _transactions = [
+        TransactionModel(
+          id: sessionId,
+          title: recipient.name,
+          subtitle: pendingSubtitle ??
+              'Awaiting payment • ${recipient.providerType}',
+          amount: amountBdt + incentiveBdt,
+          amountBdt: amountBdt,
+          convertedAmount: sourceAmount,
+          currency: 'BDT',
+          timestamp: DateTime.now(),
+          type: TransactionType.send,
+          status: TransactionStatus.pending,
+          cardId: card.id,
+          iconCategory: 'remittance',
+          stripeSessionId: sessionId,
+        ),
+        ..._transactions,
+      ];
+      notifyListeners();
+    }
+
+    return session;
+  }
+
+  /// Phase 2 — whether the hosted Checkout page was actually paid.
+  Future<bool> verifyCheckoutSession(String sessionId) {
+    return _repository.verifyCheckoutSession(sessionId);
+  }
+
+  /// Phase 3 — records the settled remittance, then reloads balances and
+  /// history so Transaction History shows the completed transfer.
+  Future<void> completeRemittance({
+    required BeneficiaryModel recipient,
+    required String cardId,
+    required double sourceAmount,
+    required String sourceCurrency,
+    required double exchangeRate,
+    required double amountBdt,
+    required double incentiveBdt,
+    required String sessionId,
+    String? settledSubtitle,
+  }) async {
     try {
-      final newTx = await _repository.executeSendMoney(
-        sourceCardId: card.id,
-        recipientName: recipient.name,
-        recipientPhone: recipient.phoneOrAccount,
+      await _repository.completePaymentRecord(
+        cardId: cardId,
+        beneficiaryName: recipient.name,
+        beneficiaryPhone: recipient.phoneOrAccount,
         sourceAmount: sourceAmount,
         sourceCurrency: sourceCurrency,
-        destinationAmount: destinationAmount,
-        destinationCurrency: destinationCurrency,
+        exchangeRate: exchangeRate,
+        amountBdt: amountBdt,
+        incentiveBdt: incentiveBdt,
+        stripeSessionId: sessionId,
       );
-
-      // Refresh card balances and transactions
-      _cards = await _repository.getCards();
-      _transactions = [newTx, ..._transactions];
-      notifyListeners();
-      return true;
     } catch (e) {
-      debugPrint('Error sending money: $e');
-      return false;
+      debugPrint('Error recording completed remittance: $e');
     }
+
+    // Settle the pending row locally first, so history is right even when the
+    // backing store is unreachable and the reload below returns nothing new.
+    _transactions = _transactions
+        .map(
+          (tx) => tx.stripeSessionId == sessionId
+              ? tx.copyWith(
+                  status: TransactionStatus.completed,
+                  subtitle: settledSubtitle ??
+                      'Remittance to ${recipient.phoneOrAccount}',
+                  iconCategory: 'person',
+                )
+              : tx,
+        )
+        .toList();
+    notifyListeners();
+
+    await refreshWallet(keepSessionId: sessionId);
+  }
+
+  /// Reloads cards and history from the repository. [keepSessionId] keeps a
+  /// locally settled row visible if the store has not caught up with it yet.
+  Future<void> refreshWallet({String? keepSessionId}) async {
+    TransactionModel? localRow;
+    if (keepSessionId != null) {
+      for (final tx in _transactions) {
+        if (tx.stripeSessionId == keepSessionId) {
+          localRow = tx;
+          break;
+        }
+      }
+    }
+
+    try {
+      final results = await Future.wait([
+        _repository.getCards(),
+        _repository.getTransactions(),
+      ]);
+
+      _cards = results[0] as List<WalletCardModel>;
+      final reloaded = results[1] as List<TransactionModel>;
+
+      final row = localRow;
+      final storeHasIt = row == null ||
+          reloaded.any(
+            (tx) => tx.stripeSessionId == keepSessionId || tx.id == row.id,
+          );
+
+      _transactions = storeHasIt ? reloaded : [row, ...reloaded];
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error refreshing wallet: $e');
+    }
+  }
+
+  /// Drops the pending row for an abandoned or failed Checkout session, so
+  /// history never shows a transfer nobody paid for.
+  void discardPendingTransaction(String sessionId) {
+    if (sessionId.isEmpty) return;
+    final before = _transactions.length;
+    _transactions = _transactions
+        .where((tx) =>
+            tx.stripeSessionId != sessionId ||
+            tx.status != TransactionStatus.pending)
+        .toList();
+    if (_transactions.length != before) notifyListeners();
   }
 
   Future<bool> interCardSwap({

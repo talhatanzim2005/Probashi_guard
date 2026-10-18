@@ -1,20 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'frontend/crChecker/cr_checker_view.dart';
+import 'frontend/documents/document_scan_view.dart';
+import 'frontend/documents/saved_documents_portal_view.dart';
+import 'frontend/home/app_search_view.dart';
 import 'frontend/home/home_view.dart';
 import 'frontend/menu/app_menu_drawer.dart';
 import 'frontend/notice/notice_view.dart';
-import 'frontend/ocr/ocr_view.dart';
 import 'frontend/payment/controllers/payment_controller.dart';
 import 'frontend/payment/payment_view.dart';
 import 'frontend/profile/controllers/profile_controller.dart';
 import 'frontend/profile/profile_view.dart';
+import 'l10n/app_strings.dart';
+import 'l10n/language_controller.dart';
 import 'theme/app_colors.dart';
 import 'widget/app_bar.dart';
 import 'widget/bottom_navigation_bar.dart';
 import 'splash_view.dart';
 
-void main() {
+// Override for another project with:
+//   flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_KEY=...
+const _supabaseUrl = String.fromEnvironment(
+  'SUPABASE_URL',
+  defaultValue: 'https://xfwxiawapksepskcevwe.supabase.co',
+);
+const _supabaseKey = String.fromEnvironment(
+  'SUPABASE_KEY',
+  defaultValue: 'sb_publishable_j189-L73p34K9QMvj-2Msg_dTYOWhIh',
+);
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Read the saved language first, so the app opens in it rather than
+  // flashing English and then switching.
+  await LanguageController.instance.load();
+  await _initSupabase();
   runApp(const SplashGate());
+}
+
+/// The document vault and transaction history are scoped to a Supabase user, so
+/// every device signs in anonymously and row-level security keeps its rows private.
+/// A failure here is not fatal: the app still runs, but scans are not saved.
+Future<void> _initSupabase() async {
+  try {
+    await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseKey);
+    final auth = Supabase.instance.client.auth;
+    if (auth.currentUser != null) return;
+    await auth.signInAnonymously().timeout(const Duration(seconds: 8));
+  } catch (e) {
+    debugPrint('[main] Supabase unavailable; the document vault is disabled: $e');
+  }
 }
 
 class ProbashiGuardApp extends StatelessWidget {
@@ -22,9 +57,22 @@ class ProbashiGuardApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<Locale>(
+      valueListenable: LanguageController.instance,
+      builder: (context, locale, _) => AppStringsScope(
+        strings: AppStrings(locale.languageCode),
+        child: _buildApp(locale),
+      ),
+    );
+  }
+
+  Widget _buildApp(Locale locale) {
     return MaterialApp(
       title: 'Probashi Guard',
       debugShowCheckedModeBanner: false,
+      locale: locale,
+      supportedLocales: LanguageController.supportedLocales,
+      localizationsDelegates: LanguageController.localizationsDelegates,
       theme: ThemeData(
         scaffoldBackgroundColor: AppColors.cloudDancer,
         primaryColor: AppColors.royalBlue,
@@ -33,6 +81,12 @@ class ProbashiGuardApp extends StatelessWidget {
           surface: AppColors.cloudDancer,
           error: AppColors.crimsonRed,
         ),
+        // Normal text is #040303 unless a widget sets its own colour, so new
+        // Text() does not fall back to Material's black87.
+        textTheme: ThemeData.light().textTheme.apply(
+              bodyColor: AppColors.ink,
+              displayColor: AppColors.ink,
+            ),
       ),
       home: const MainNavigationShell(),
     );
@@ -65,6 +119,13 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     );
   }
 
+  /// Checking a document for fraud *is* the scanner, so Fraud Checker opens it.
+  /// From a pushed screen (the profile page) the shell has to come back first.
+  void _openFraudChecker() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _onTabSelected(2);
+  }
+
   void _openProfile() {
     Navigator.push(
       context,
@@ -77,11 +138,30 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     );
   }
 
+  /// The vault of documents already scanned on this device.
+  void _openSavedDocuments() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SavedDocumentsPortalView()),
+    );
+  }
+
+  void _openSearch() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AppSearchView(
+          onNavigateTab: _onTabSelected,
+          onOpenMenu: () => _scaffoldKey.currentState?.openEndDrawer(),
+        ),
+      ),
+    );
+  }
+
   void _comingSoon(String feature) {
-    final bn = _profileController.isBangla;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(bn ? '$feature শীঘ্রই আসছে' : '$feature is coming soon'),
+        content: Text(AppStrings.of(context).comingSoon(feature)),
         backgroundColor: AppColors.royalBlue,
         duration: const Duration(seconds: 1),
       ),
@@ -115,12 +195,12 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       case MenuDestination.profile:
         _openProfile();
       case MenuDestination.fraudChecker:
-        _openCrChecker();
+        _openFraudChecker();
       case MenuDestination.complaint:
         // TODO: open the Complaint screen once it is ready to link.
         _comingSoon('Complaint');
       case MenuDestination.savedDocuments:
-        _comingSoon('Saved Documents');
+        _openSavedDocuments();
       case MenuDestination.embassyContacts:
         _comingSoon('Embassy & Helplines');
       case MenuDestination.helpSupport:
@@ -138,14 +218,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   void _onProfileAction(ProfileAction action) {
     switch (action) {
       case ProfileAction.fraudChecker:
-        _openCrChecker();
+        _openFraudChecker();
       case ProfileAction.logout:
         // TODO(backend): clear the session and go to the login screen.
         _comingSoon('Log out');
       case ProfileAction.editProfile:
         _comingSoon('Edit Profile');
       case ProfileAction.savedDocuments:
-        _comingSoon('Saved Documents');
+        _openSavedDocuments();
       case ProfileAction.passportVisa:
         _comingSoon('Passport & Visa');
       case ProfileAction.bmetCard:
@@ -172,9 +252,12 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         userName: _profileController.userName,
         onNavigateToNotice: () => _onTabSelected(3),
         onNavigateToCrChecker: _openCrChecker,
+        onNavigateToFraudChecker: _openFraudChecker,
+        onOpenSavedDocuments: _openSavedDocuments,
+        onSearchTap: _openSearch,
       ),
       PaymentView(controller: _paymentController),
-      const OcrView(),
+      const DocumentScanView(),
       const NoticeView(),
     ];
 
@@ -201,6 +284,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             // made the tap look like it did nothing.
             onProfileTap: _openProfile,
             onMenuTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+            onSearchTap: _openSearch,
           ),
           body: screens[_currentIndex],
           bottomNavigationBar: CustomBottomNavigationBar(

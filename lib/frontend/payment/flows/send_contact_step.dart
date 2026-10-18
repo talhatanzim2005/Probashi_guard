@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../models/beneficiary_model.dart';
 import '../models/country_model.dart';
@@ -44,6 +45,7 @@ class _SendContactStepState extends State<SendContactStep> {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
     // Intelligent search using PhoneSearchHelper
     final filtered = widget.beneficiaries.where((b) {
       final matchesQuery = PhoneSearchHelper.matches(b, _searchQuery);
@@ -54,9 +56,9 @@ class _SendContactStepState extends State<SendContactStep> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Select Recipient',
-          style: TextStyle(
+        Text(
+          s.selectRecipient,
+          style: const TextStyle(
             color: AppColors.royalBlue,
             fontSize: 20,
             fontWeight: FontWeight.w800,
@@ -65,9 +67,9 @@ class _SendContactStepState extends State<SendContactStep> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Search by name, country, or phone number across all countries',
-          style: TextStyle(
-            color: AppColors.royalBlue.withValues(alpha: 0.6),
+          s.selectRecipientSubtitle,
+          style: const TextStyle(
+            color: AppColors.inkMuted,
             fontSize: 13,
           ),
         ),
@@ -140,14 +142,14 @@ class _SendContactStepState extends State<SendContactStep> {
                   controller: _searchController,
                   onChanged: (val) => setState(() => _searchQuery = val),
                   style: const TextStyle(
-                    color: AppColors.royalBlue,
+                    color: AppColors.ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Search contact or enter phone...',
-                    hintStyle: TextStyle(
-                      color: AppColors.royalBlue.withValues(alpha: 0.45),
+                    hintText: s.searchContactHint,
+                    hintStyle: const TextStyle(
+                      color: AppColors.inkMuted,
                       fontSize: 13,
                     ),
                     prefixIcon: const Icon(
@@ -178,21 +180,21 @@ class _SendContactStepState extends State<SendContactStep> {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            children: [
-              'All',
-              '🇧🇩 Bangladesh',
-              '🇸🇦 Saudi',
-              '🇦🇪 UAE',
-              'Global',
-              'bKash',
-              'Nagad',
-              'Bank',
+            children: <({String key, String label})>[
+              (key: 'All', label: s.filterAll),
+              (key: '🇧🇩 Bangladesh', label: '🇧🇩 Bangladesh'),
+              (key: '🇸🇦 Saudi', label: '🇸🇦 Saudi'),
+              (key: '🇦🇪 UAE', label: '🇦🇪 UAE'),
+              (key: 'Global', label: s.filterGlobal),
+              (key: 'bKash', label: 'bKash'),
+              (key: 'Nagad', label: 'Nagad'),
+              (key: 'Bank', label: s.filterBank),
             ].map((filter) {
-              final isSelected = _selectedFilter == filter;
+              final isSelected = _selectedFilter == filter.key;
               return Padding(
                 padding: const EdgeInsets.only(right: 6.0),
                 child: ChoiceChip(
-                  label: Text(filter),
+                  label: Text(filter.label),
                   selected: isSelected,
                   selectedColor: AppColors.royalBlue,
                   backgroundColor: Colors.white,
@@ -208,7 +210,7 @@ class _SendContactStepState extends State<SendContactStep> {
                     ),
                   ),
                   onSelected: (val) {
-                    if (val) setState(() => _selectedFilter = filter);
+                    if (val) setState(() => _selectedFilter = filter.key);
                   },
                 ),
               );
@@ -235,18 +237,18 @@ class _SendContactStepState extends State<SendContactStep> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'No matching contact found for "$_searchQuery"',
-                        style: TextStyle(
-                          color: AppColors.royalBlue.withValues(alpha: 0.7),
+                        s.noMatchingContact(_searchQuery),
+                        style: const TextStyle(
+                          color: AppColors.ink,
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'You can still send directly using the banner above',
-                        style: TextStyle(
-                          color: AppColors.royalBlue.withValues(alpha: 0.5),
+                        s.sendDirectlyHint,
+                        style: const TextStyle(
+                          color: AppColors.inkMuted,
                           fontSize: 11.5,
                         ),
                       ),
@@ -307,7 +309,7 @@ class _SendContactStepState extends State<SendContactStep> {
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                'Send directly to $fullNumber',
+                AppStrings.of(context).sendDirectlyTo(fullNumber),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -486,9 +488,9 @@ class _SendContactStepState extends State<SendContactStep> {
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Select Destination Country & Dial Code',
-              style: TextStyle(
+            Text(
+              AppStrings.of(context).selectDestinationCountry,
+              style: const TextStyle(
                 color: AppColors.royalBlue,
                 fontSize: 16.5,
                 fontWeight: FontWeight.w800,

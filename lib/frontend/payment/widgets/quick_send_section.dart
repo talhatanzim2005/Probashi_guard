@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../models/beneficiary_model.dart';
 
@@ -20,11 +21,11 @@ class QuickSendSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Section Title
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 2.0),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2.0),
           child: Text(
-            'Quick send',
-            style: TextStyle(
+            AppStrings.of(context).quickSend,
+            style: const TextStyle(
               color: AppColors.royalBlue,
               fontSize: 17,
               fontWeight: FontWeight.w800,
@@ -204,12 +205,12 @@ class _AddContactItem extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          const SizedBox(
+          SizedBox(
             width: 54,
             child: Text(
-              'Add',
+              AppStrings.of(context).add,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.royalBlue,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,

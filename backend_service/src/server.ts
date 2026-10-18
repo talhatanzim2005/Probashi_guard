@@ -20,10 +20,10 @@ app.use(cors());
 app.use('/api/documents', documentRoutes);
 
 // Middleware to capture rawBody for webhook signature verification while parsing JSON.
-// 50mb so base64 camera images posted to any route are not rejected.
+// Standard 2mb limit for general JSON routes (documents handles its own larger limit).
 app.use(
   express.json({
-    limit: '50mb',
+    limit: '2mb',
     verify: (req: any, _res, buf) => {
       req.rawBody = buf;
     },
@@ -31,7 +31,7 @@ app.use(
 );
 
 // Form data middleware
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.urlencoded({ limit: '2mb', extended: true }));
 
 // Health check
 app.get('/api/health', (_req: Request, res: Response) => {
@@ -52,12 +52,13 @@ app.get('/success', (req: Request, res: Response) => {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Remittance Successful</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0A192F; color: white; text-align: center; }
-    .card { background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.1); max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-    .icon { font-size: 54px; color: #10B981; margin-bottom: 16px; }
-    h1 { font-size: 22px; margin-bottom: 8px; color: #E2E8F0; }
-    p { color: #94A3B8; font-size: 14px; margin-bottom: 24px; line-height: 1.5; }
-    .btn { display: inline-block; background: #10B981; color: white; padding: 12px 24px; border-radius: 12px; text-decoration: none; font-weight: 700; cursor: pointer; }
+    /* Palette: Cloud Dancer #F5F2EB, Royal Blue #1A4B9C, Emerald #1E824C, Crimson #D32F2F, ink #040303. */
+    body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #F5F2EB; color: #040303; text-align: center; }
+    .card { background: #F5F2EB; padding: 40px; border-radius: 20px; border: 1px solid rgba(26, 75, 156, 0.18); max-width: 400px; box-shadow: 0 10px 30px rgba(4, 3, 3, 0.10); }
+    .icon { font-size: 54px; color: #1E824C; margin-bottom: 16px; }
+    h1 { font-size: 22px; font-weight: 800; margin-bottom: 8px; color: #1A4B9C; }
+    p { color: rgba(4, 3, 3, 0.7); font-size: 14px; font-weight: 600; margin-bottom: 24px; line-height: 1.5; }
+    .btn { display: inline-block; background: #1E824C; color: #F5F2EB; padding: 12px 24px; border-radius: 12px; text-decoration: none; font-weight: 800; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -80,12 +81,13 @@ app.get('/cancel', (_req: Request, res: Response) => {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Checkout Cancelled</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0A192F; color: white; text-align: center; }
-    .card { background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.1); max-width: 400px; }
-    .icon { font-size: 54px; color: #EF4444; margin-bottom: 16px; }
-    h1 { font-size: 22px; margin-bottom: 8px; color: #E2E8F0; }
-    p { color: #94A3B8; font-size: 14px; margin-bottom: 24px; }
-    .btn { display: inline-block; background: #3B82F6; color: white; padding: 12px 24px; border-radius: 12px; text-decoration: none; font-weight: 700; cursor: pointer; }
+    /* Palette: Cloud Dancer #F5F2EB, Royal Blue #1A4B9C, Emerald #1E824C, Crimson #D32F2F, ink #040303. */
+    body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #F5F2EB; color: #040303; text-align: center; }
+    .card { background: #F5F2EB; padding: 40px; border-radius: 20px; border: 1px solid rgba(26, 75, 156, 0.18); max-width: 400px; box-shadow: 0 10px 30px rgba(4, 3, 3, 0.10); }
+    .icon { font-size: 54px; color: #D32F2F; margin-bottom: 16px; }
+    h1 { font-size: 22px; font-weight: 800; margin-bottom: 8px; color: #1A4B9C; }
+    p { color: rgba(4, 3, 3, 0.7); font-size: 14px; font-weight: 600; margin-bottom: 24px; }
+    .btn { display: inline-block; background: #1A4B9C; color: #F5F2EB; padding: 12px 24px; border-radius: 12px; text-decoration: none; font-weight: 800; cursor: pointer; }
   </style>
 </head>
 <body>

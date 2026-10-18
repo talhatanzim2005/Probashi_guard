@@ -1,5 +1,6 @@
 import 'dart:io' show File, Platform;
 import 'package:camera/camera.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,6 +27,17 @@ PassportMrz _passportMrzFrom(MRZResult result) => PassportMrz(
       expiryDate: result.expiryDate,
     );
 
+/// One page waiting to be checked: a photo, or a PDF holding a whole document.
+class _ScanFile {
+  final Uint8List bytes;
+  final bool isPdf;
+
+  /// Shown instead of a thumbnail for a PDF, which cannot be previewed here.
+  final String? name;
+
+  const _ScanFile(this.bytes, {this.isPdf = false, this.name});
+}
+
 /// The scanner keeps a JPEG of the passport page in the temp folder; it is never
 /// uploaded, so don't leave it lying around.
 void _deletePassportImage(String? path) {
@@ -37,8 +49,13 @@ void _deletePassportImage(String? path) {
 /// and capture it for an AI audit by backend_service.
 class DocumentScanView extends StatefulWidget {
   final DocumentAnalysisRepository? repository;
+  final bool initialPassportMode;
 
-  const DocumentScanView({super.key, this.repository});
+  const DocumentScanView({
+    super.key,
+    this.repository,
+    this.initialPassportMode = false,
+  });
 
   @override
   State<DocumentScanView> createState() => _DocumentScanViewState();
@@ -54,7 +71,15 @@ class _DocumentScanViewState extends State<DocumentScanView>
   String? _cameraError;
   DocumentLanguage _language = DocumentLanguage.bangla;
   _ScanStage _stage = _ScanStage.idle;
-  _ScanMode _mode = _ScanMode.document;
+  late _ScanMode _mode =
+      (widget.initialPassportMode && _mrzSupported) ? _ScanMode.passport : _ScanMode.document;
+
+  /// Pages gathered for the next check: a multi-page contract is one scan, so
+  /// they are held here until the worker taps Check.
+  final List<_ScanFile> _files = [];
+
+  /// Why the last save to the vault failed, read by the detail screen.
+  String? _saveError;
 
   /// Bumped on every scan and on cancel, so a cancelled request's late result is dropped.
   int _scanId = 0;
@@ -99,6 +124,12 @@ class _DocumentScanViewState extends State<DocumentScanView>
     DocumentLanguage.bangla: 'স্থির রাখুন: কোডের লাইনগুলো এখনো পরিষ্কার পড়া যাচ্ছে না।',
     DocumentLanguage.english: 'Hold still: the code lines are not clear yet.',
     DocumentLanguage.chinese: '请保持稳定：代码行还不够清晰。',
+  };
+
+  static const _pageHints = {
+    DocumentLanguage.bangla: 'প্রতিটি পাতার ছবি তুলুন বা গ্যালারি/পিডিএফ থেকে বেছে নিন, তারপর “যাচাই করুন” চাপুন।',
+    DocumentLanguage.english: 'Photograph each page, or pick photos or a PDF, then tap Check.',
+    DocumentLanguage.chinese: '逐页拍照，或从相册/PDF 中选择，然后点击“检查”。',
   };
 
   static const _waitHints = {
@@ -150,6 +181,8 @@ class _DocumentScanViewState extends State<DocumentScanView>
         _mode = _ScanMode.passport;
         _mrzUnclear = false;
         _passportScannerKey++;
+        // A passport is read live from its MRZ, so gathered pages don't apply.
+        _files.clear();
       });
     } else {
       setState(() => _mode = _ScanMode.document);
@@ -198,9 +231,21 @@ class _DocumentScanViewState extends State<DocumentScanView>
             ? 'Camera permission is off. Allow camera access in Settings, or choose a photo from the gallery.'
             : 'Could not start the camera. Choose a photo from the gallery instead.';
       });
+    } catch (e) {
+      // The plugin can fail in other ways (no camera support on this platform,
+      // a missing plugin registration). Without this the placeholder would
+      // spin forever instead of telling the user what to do.
+      debugPrint('[DocumentScanView] Camera unavailable: $e');
+      if (!mounted) return;
+      setState(() {
+        _cameraError =
+            'The camera is not available on this device. Choose a photo from the gallery instead.';
+      });
     }
   }
 
+  /// A photo of one page. It joins the tray rather than being checked straight
+  /// away, so a contract that runs over several pages is audited as one document.
   Future<void> _capture() async {
     final controller = _controller;
     if (_isBusy ||
@@ -209,40 +254,151 @@ class _DocumentScanViewState extends State<DocumentScanView>
         controller.value.isTakingPicture) {
       return;
     }
+    if (!_canAddPhotos()) return;
     // Show feedback before takePicture: it can take a second or two on Android.
     setState(() => _stage = _ScanStage.capturing);
     Uint8List bytes;
+    String? tempPath;
     try {
       final file = await controller.takePicture();
+      tempPath = file.path;
       bytes = await file.readAsBytes();
-    } on CameraException catch (e) {
-      debugPrint(
-        '[DocumentScanView] Capture failed: ${e.code} ${e.description}',
-      );
+    } catch (e) {
+      // Anything here (a CameraException, or a temp file that cannot be read)
+      // has to clear the stage: the capturing overlay has no cancel button.
+      debugPrint('[DocumentScanView] Capture failed: $e');
       if (mounted) setState(() => _stage = _ScanStage.idle);
       _showError('Could not take the photo. Please try again.');
       return;
+    } finally {
+      if (tempPath != null) {
+        try {
+          final tempFile = File(tempPath);
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+        } catch (delErr) {
+          debugPrint('[DocumentScanView] Failed to delete temp capture file: $delErr');
+        }
+      }
     }
-    await _analyze(bytes);
+    if (!mounted) return;
+    setState(() {
+      _stage = _ScanStage.idle;
+      _files.add(_ScanFile(bytes));
+    });
   }
 
   Future<void> _pickFromGallery() async {
-    Uint8List bytes;
+    if (!_canAddPhotos()) return;
+    final room = DocumentAnalysisRepository.maxPages - _files.length;
+    List<XFile> picked;
     try {
-      final file = await _picker.pickImage(
-        source: ImageSource.gallery,
+      picked = await _picker.pickMultiImage(
+        limit: room > 1 ? room : null,
         maxWidth: 2000,
         maxHeight: 2000,
         imageQuality: 85,
       );
-      if (file == null) return;
-      bytes = await file.readAsBytes();
     } catch (e) {
       debugPrint('[DocumentScanView] Gallery pick failed: $e');
       _showError('Could not open the gallery.');
       return;
     }
-    await _analyze(bytes);
+    if (picked.isEmpty) return;
+
+    // pickMultiImage's limit is advisory on some platforms, so trim here too.
+    final tooMany = picked.length > room;
+    final added = <_ScanFile>[];
+    for (final file in picked.take(room)) {
+      try {
+        added.add(_ScanFile(await file.readAsBytes()));
+      } catch (e) {
+        debugPrint('[DocumentScanView] Could not read ${file.name}: $e');
+      }
+    }
+    if (!mounted) return;
+    if (added.isEmpty) {
+      _showError('Could not open those photos.');
+      return;
+    }
+    setState(() => _files.addAll(added));
+    if (tooMany) {
+      _showError(
+        'Only ${DocumentAnalysisRepository.maxPages} pages can be checked at once. '
+        'Check these first, then scan the rest.',
+      );
+    }
+  }
+
+  /// A PDF is a whole document, so it is checked on its own.
+  Future<void> _pickPdf() async {
+    if (_files.isNotEmpty) {
+      _showError(
+        _files.first.isPdf
+            ? 'A PDF is already attached. Remove it to choose another.'
+            : 'A PDF is checked on its own. Remove the photos first, or check them.',
+      );
+      return;
+    }
+    PlatformFile? file;
+    try {
+      file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+        dialogTitle: 'Choose a PDF document',
+      );
+    } catch (e) {
+      debugPrint('[DocumentScanView] PDF pick failed: $e');
+      _showError('Could not open your files.');
+      return;
+    }
+    if (file == null) return;
+
+    // When the picker already knows the size, say so before reading 8 MB+ in.
+    final knownLength = file.lengthSync();
+    if (knownLength != null && knownLength > DocumentAnalysisRepository.maxImageBytes) {
+      _showError('That PDF is too large (over 8 MB). Please choose a smaller file.');
+      return;
+    }
+    Uint8List bytes;
+    try {
+      bytes = await file.readAsBytes();
+    } catch (e) {
+      debugPrint('[DocumentScanView] Could not read the PDF: $e');
+      _showError('Could not read that PDF.');
+      return;
+    }
+    if (bytes.isEmpty) {
+      _showError('That PDF is empty. Please choose another file.');
+      return;
+    }
+    if (bytes.length > DocumentAnalysisRepository.maxImageBytes) {
+      _showError('That PDF is too large (over 8 MB). Please choose a smaller file.');
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _files.add(_ScanFile(bytes, isPdf: true, name: file!.name)));
+  }
+
+  /// Photos and a PDF cannot be mixed in one check.
+  bool _canAddPhotos() {
+    if (_files.isNotEmpty && _files.first.isPdf) {
+      _showError('A PDF is attached. Remove it to photograph pages instead.');
+      return false;
+    }
+    if (_files.length >= DocumentAnalysisRepository.maxPages) {
+      _showError(
+        'Up to ${DocumentAnalysisRepository.maxPages} pages can be checked at once. '
+        'Check these first, then scan the rest.',
+      );
+      return false;
+    }
+    return true;
+  }
+
+  void _removeFile(int index) {
+    setState(() => _files.removeAt(index));
   }
 
   Future<void> _pickPassportFromGallery() async {
@@ -263,11 +419,19 @@ class _DocumentScanViewState extends State<DocumentScanView>
     if (message != null) _showError(message);
   }
 
-  /// Contracts and visas: the photo goes to Gemini on the backend.
-  Future<void> _analyze(Uint8List bytes) => _runScan(
-        _ScanStage.analyzing,
-        (language) => _repository.analyze(imageBytes: bytes, language: language),
-      );
+  /// Contracts and visas: the pages gathered in the tray go to Gemini on the
+  /// backend as one document. Nothing is stored yet; the worker decides after
+  /// reading the audit.
+  Future<void> _checkFiles() async {
+    if (_files.isEmpty) return;
+    final pages = [for (final file in _files) file.bytes];
+    final checked = await _runScan(
+      _ScanStage.analyzing,
+      (language) => _repository.analyze(files: pages, language: language),
+    );
+    // Keep the pages when the check failed, so Retry can send them again.
+    if (checked && mounted) setState(() => _files.clear());
+  }
 
   /// Passports: only the fields read on the phone go to the backend.
   Future<void> _savePassport(PassportMrz mrz) async {
@@ -278,17 +442,39 @@ class _DocumentScanViewState extends State<DocumentScanView>
     if (mounted) setState(() => _passportScannerKey++);
   }
 
-  Future<void> _runScan(
+  /// Keeps a result the worker chose to save. Its reason for failing is left in
+  /// [_saveError] for the detail screen to show.
+  Future<bool> _saveToVault(
+    DocumentAnalysisResult result,
+    DocumentLanguage language,
+  ) async {
+    _saveError = null;
+    try {
+      final saved = await _repository.saveAnalysis(result: result, language: language);
+      if (saved.saved) return true;
+      _saveError = 'The document vault did not accept this scan. Please try again.';
+    } on DocumentAnalysisException catch (e) {
+      _saveError = e.message;
+    } catch (e) {
+      debugPrint('[DocumentScanView] Unexpected save error: $e');
+      _saveError = 'Could not save this document. Please try again.';
+    }
+    return false;
+  }
+
+  /// Runs one check and opens its result. True when the document was audited
+  /// (whatever the worker then chose to do with it).
+  Future<bool> _runScan(
     _ScanStage stage,
     Future<DocumentAnalysisResult> Function(DocumentLanguage language) request,
   ) async {
-    if (_stage == _ScanStage.analyzing || _stage == _ScanStage.saving) return;
+    if (_stage == _ScanStage.analyzing || _stage == _ScanStage.saving) return false;
     final language = _language;
     final scanId = ++_scanId;
     setState(() => _stage = stage);
     try {
       final result = await request(language);
-      if (!mounted || scanId != _scanId) return;
+      if (!mounted || scanId != _scanId) return false;
       setState(() => _stage = _ScanStage.idle);
       await Navigator.push(
         context,
@@ -297,22 +483,27 @@ class _DocumentScanViewState extends State<DocumentScanView>
             analysis: result.analysis,
             language: language,
             saved: result.saved,
+            pages: result.pages,
             scannedAt: DateTime.now(),
+            onSave: () => _saveToVault(result, language),
+            saveError: () => _saveError,
           ),
         ),
       );
+      return true;
     } on DocumentAnalysisException catch (e) {
-      if (scanId != _scanId) return;
+      if (scanId != _scanId) return false;
       _showError(e.message, onRetry: e.retryable ? () => _runScan(stage, request) : null);
     } catch (e) {
       debugPrint('[DocumentScanView] Unexpected scan error: $e');
-      if (scanId != _scanId) return;
+      if (scanId != _scanId) return false;
       _showError('Something went wrong while checking the document. Please try again.');
     } finally {
       if (mounted && scanId == _scanId && _stage == stage) {
         setState(() => _stage = _ScanStage.idle);
       }
     }
+    return false;
   }
 
   void _cancelScan() {
@@ -406,6 +597,7 @@ class _DocumentScanViewState extends State<DocumentScanView>
         controller != null &&
         controller.value.isInitialized &&
         !_isBusy;
+    final hasFiles = !isPassport && _files.isNotEmpty;
     final segmentStyle = SegmentedButton.styleFrom(
       foregroundColor: AppColors.royalBlue,
       selectedForegroundColor: AppColors.cloudDancer,
@@ -430,7 +622,11 @@ class _DocumentScanViewState extends State<DocumentScanView>
           const SizedBox(height: 2),
           const Text(
             'Check any contract or paper before you sign or give a thumbprint.',
-            style: TextStyle(color: AppColors.royalBlueMuted, fontSize: 13.5),
+            style: TextStyle(
+              color: AppColors.inkMuted,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 12),
           if (_mrzSupported) ...[
@@ -488,27 +684,60 @@ class _DocumentScanViewState extends State<DocumentScanView>
               ),
             ),
           ),
-          if (isPassport) ...[
+          // Once pages are queued the tray and its button speak for themselves,
+          // and dropping the hint keeps the preview tall on short screens.
+          if (!hasFiles) ...[
             const SizedBox(height: 8),
             Text(
-              (_mrzUnclear ? _mrzUnclearHints : _passportHints)[_language]!,
+              isPassport
+                  ? (_mrzUnclear ? _mrzUnclearHints : _passportHints)[_language]!
+                  : _pageHints[_language]!,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.royalBlueMuted, fontSize: 13),
+              style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
             ),
           ],
-          const SizedBox(height: 14),
+          if (hasFiles) ...[
+            const SizedBox(height: 10),
+            _PageTray(
+              files: _files,
+              onRemove: _isBusy ? null : _removeFile,
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: _isBusy ? null : _checkFiles,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.royalBlue,
+                foregroundColor: AppColors.cloudDancer,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(Icons.fact_check_rounded, size: 20),
+              label: Text(
+                _files.first.isPdf
+                    ? 'Check this PDF'
+                    : 'Check ${_files.length} page${_files.length == 1 ? '' : 's'}',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _RoundAction(
                 icon: Icons.photo_library_rounded,
-                label: 'Gallery',
+                label: isPassport ? 'Gallery' : 'Photos',
                 onPressed: _isBusy
                     ? null
                     : isPassport
                         ? _pickPassportFromGallery
                         : _pickFromGallery,
               ),
+              if (!isPassport)
+                _RoundAction(
+                  icon: Icons.picture_as_pdf_rounded,
+                  label: 'PDF',
+                  onPressed: _isBusy ? null : _pickPdf,
+                ),
               _ShutterButton(onPressed: canCapture ? _capture : null),
               _RoundAction(
                 icon: Icons.folder_shared_rounded,
@@ -518,6 +747,91 @@ class _DocumentScanViewState extends State<DocumentScanView>
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The pages queued for the next check, each removable: a blurred page can be
+/// dropped and retaken before the document is sent.
+class _PageTray extends StatelessWidget {
+  final List<_ScanFile> files;
+  final void Function(int index)? onRemove;
+
+  const _PageTray({required this.files, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 76,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: files.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final file = files[i];
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 58,
+                height: 76,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.royalBlue.withValues(alpha: 0.3), width: 1.2),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: file.isPdf
+                    ? const Center(
+                        child: Icon(Icons.picture_as_pdf_rounded, color: AppColors.royalBlue, size: 28),
+                      )
+                    // cacheWidth keeps ten full-resolution pages from being
+                    // decoded at full size just to show thumbnails.
+                    : Image.memory(file.bytes, fit: BoxFit.cover, cacheWidth: 160),
+              ),
+              Positioned(
+                left: 2,
+                bottom: 2,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.royalBlue.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    child: Text(
+                      file.isPdf ? 'PDF' : '${i + 1}',
+                      style: const TextStyle(
+                        color: AppColors.cloudDancer,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: -6,
+                right: -6,
+                child: Semantics(
+                  button: true,
+                  label: file.isPdf ? 'Remove the PDF' : 'Remove page ${i + 1}',
+                  child: GestureDetector(
+                    onTap: onRemove == null ? null : () => onRemove!(i),
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: AppColors.crimsonRed,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 14, color: AppColors.cloudDancer),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

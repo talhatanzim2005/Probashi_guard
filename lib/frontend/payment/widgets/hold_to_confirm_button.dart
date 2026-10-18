@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 
 class HoldToConfirmButton extends StatefulWidget {
-  final Future<void> Function() onConfirmed;
-  final String label;
+  /// Runs when the hold completes. Return true when the action went through and
+  /// the button should stay confirmed; return false to release the button so the
+  /// person can hold again (a declined or abandoned payment, for instance).
+  final Future<bool> Function() onConfirmed;
+
+  /// Defaults to the translated "Hold to Confirm" when not given.
+  final String? label;
 
   const HoldToConfirmButton({
     super.key,
     required this.onConfirmed,
-    this.label = 'Hold to Confirm',
+    this.label,
   });
 
   @override
@@ -58,13 +64,21 @@ class _HoldToConfirmButtonState extends State<HoldToConfirmButton>
     _isProcessing = true;
     HapticFeedback.heavyImpact();
 
-    await widget.onConfirmed();
+    final settled = await widget.onConfirmed();
 
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-      });
+    if (!mounted) return;
+
+    if (!settled) {
+      // Rewind before clearing the flag, so the progress listener does not read
+      // a full bar with _isCompleted false and fire the hold a second time.
+      _controller.value = 0.0;
+      _lastHapticStep = 0;
+      _isCompleted = false;
     }
+
+    setState(() {
+      _isProcessing = false;
+    });
   }
 
   void _handleTapDown(TapDownDetails details) {
@@ -179,7 +193,9 @@ class _HoldToConfirmButtonState extends State<HoldToConfirmButton>
         ),
         const SizedBox(width: 8),
         Text(
-          _isCompleted ? 'Transfer Confirmed' : widget.label,
+          _isCompleted
+              ? AppStrings.of(context).transferConfirmed
+              : (widget.label ?? AppStrings.of(context).holdToConfirm),
           style: TextStyle(
             color: textColor,
             fontSize: 15,

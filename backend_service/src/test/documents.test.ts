@@ -2,11 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert';
 import http from 'node:http';
 import app from '../server.js';
-import { buildReport, normalizeAnalysis, parseImage } from '../routes/documents.js';
+import { buildReport, normalizeAnalysis, parseScanFile, parseScanFiles } from '../routes/documents.js';
 import { detectTipShoi } from '../documents/fraudRules.js';
 import { parsePassportMrz, passportMrzToRawAnalysis, type PassportMrz } from '../documents/identity.js';
 
 const JPEG_HEADER = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
+const PNG_HEADER = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const PDF_HEADER = Buffer.from('%PDF-1.7\n%\xc7\xec\x8f\xa2', 'binary');
+const b64 = (b: Buffer) => b.toString('base64');
 
 let server: http.Server;
 let baseUrl: string;
@@ -27,16 +30,56 @@ test.after(async () => {
   });
 });
 
-test('parseImage detects JPEG and strips a data URL prefix', () => {
-  const parsed = parseImage(`data:image/jpeg;base64,${JPEG_HEADER.toString('base64')}`);
+test('parseScanFile detects JPEG and strips a data URL prefix', () => {
+  const parsed = parseScanFile(`data:image/jpeg;base64,${b64(JPEG_HEADER)}`);
   assert.ok(!('error' in parsed));
   assert.strictEqual(parsed.mime, 'image/jpeg');
   assert.strictEqual(parsed.sha256.length, 64);
 });
 
-test('parseImage rejects non-image payloads', () => {
-  const parsed = parseImage(Buffer.from('%PDF-1.7 not an image').toString('base64'));
-  assert.ok('error' in parsed);
+test('parseScanFile accepts a PDF, so a worker can send a document file as it is', () => {
+  const parsed = parseScanFile(b64(PDF_HEADER));
+  assert.ok(!('error' in parsed));
+  assert.strictEqual(parsed.mime, 'application/pdf');
+});
+
+test('parseScanFile rejects formats the model cannot read', () => {
+  assert.ok('error' in parseScanFile(b64(Buffer.from('GIF89a not supported'))));
+});
+
+test('parseScanFiles reads several photos as the pages of one document', () => {
+  const files = parseScanFiles({ filesBase64: [b64(JPEG_HEADER), b64(PNG_HEADER)] });
+  assert.ok(Array.isArray(files));
+  assert.deepStrictEqual(
+    files.map((f) => f.mime),
+    ['image/jpeg', 'image/png'],
+  );
+  // One hash stands for the whole set, and it is not either page's own hash.
+  const single = parseScanFiles({ imageBase64: b64(JPEG_HEADER) });
+  assert.ok(Array.isArray(single));
+  assert.strictEqual(single.length, 1);
+  assert.notStrictEqual(files[0].sha256, single[0].sha256 + files[1].sha256);
+});
+
+test('parseScanFiles still accepts the single imageBase64 older clients send', () => {
+  const files = parseScanFiles({ imageBase64: b64(JPEG_HEADER) });
+  assert.ok(Array.isArray(files));
+  assert.strictEqual(files.length, 1);
+  assert.strictEqual(files[0].mime, 'image/jpeg');
+});
+
+test('parseScanFiles refuses more than 10 pages and a PDF mixed with photos', () => {
+  const many = parseScanFiles({ filesBase64: Array.from({ length: 11 }, () => b64(JPEG_HEADER)) });
+  assert.ok('error' in many);
+  assert.match(many.error, /Too many pages/);
+
+  const mixed = parseScanFiles({ filesBase64: [b64(PDF_HEADER), b64(JPEG_HEADER)] });
+  assert.ok('error' in mixed);
+  assert.match(mixed.error, /single PDF or photos/);
+});
+
+test('parseScanFiles reports a missing body as a missing image', () => {
+  assert.ok('error' in parseScanFiles({}));
 });
 
 test('salary under SAR 1,000 is forced to high risk and blocks SAFE_TO_SIGN', () => {
@@ -237,12 +280,17 @@ test('buildReport produces the flat report shape', () => {
   assert.strictEqual(report.translated_text, 'ধারা ১');
 });
 
-const postJson = (path: string, body: unknown) =>
+const postJson = (path: string, body: unknown, headers: Record<string, string> = { Authorization: 'Bearer mock-test-token' }) =>
   fetch(`${baseUrl}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
   });
+
+test('POST /api/documents/scan without Authorization header returns 401', async () => {
+  const res = await postJson('/api/documents/scan', { imageBase64: 'test' }, {});
+  assert.strictEqual(res.status, 401);
+});
 
 test('POST /api/documents/scan rejects a non-image with 400', async () => {
   const res = await postJson('/api/documents/scan', { imageBase64: Buffer.from('hello').toString('base64'), language: 'bn' });
@@ -271,8 +319,22 @@ test('POST /api/documents/mrz rejects invalid passport fields with 400', async (
   assert.strictEqual(res.status, 400);
 });
 
-test('POST /api/documents/mrz without a session returns the passport analysis unsaved', async () => {
-  const res = await postJson('/api/documents/mrz', { language: 'en', mrz: passport });
+test('POST /api/documents/save without a session is refused rather than silently dropped', async () => {
+  const res = await postJson('/api/documents/save', {
+    language: 'en',
+    analysis: { verdict: 'DO_NOT_SIGN', summary_3_lines: ['a', 'b', 'c'] },
+  }, {});
+  assert.strictEqual(res.status, 401);
+});
+
+test('POST /api/documents/save rejects an empty analysis with 400', async () => {
+  const res = await postJson('/api/documents/save', { language: 'en' });
+  assert.strictEqual(res.status, 400);
+  assert.match(((await res.json()) as any).error, /analysis is required/);
+});
+
+test('POST /api/documents/mrz with save:false returns the passport analysis unsaved', async () => {
+  const res = await postJson('/api/documents/mrz', { language: 'en', mrz: passport, save: false });
   assert.strictEqual(res.status, 200);
   const body = (await res.json()) as any;
   assert.strictEqual(body.saved, false);

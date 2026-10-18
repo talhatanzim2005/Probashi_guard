@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_strings.dart';
 import '../theme/app_colors.dart';
 
 class CustomBottomNavigationBar extends StatelessWidget {
@@ -14,31 +15,33 @@ class CustomBottomNavigationBar extends StatelessWidget {
   /// Content height of the bar (the system gesture/nav inset is added on top).
   static const double kBarHeight = 72.0;
 
-  static const List<_NavItemData> _items = [
-    _NavItemData(
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home_rounded,
-      label: 'Home',
-    ),
-    _NavItemData(
-      icon: Icons.credit_card_outlined,
-      activeIcon: Icons.credit_card_rounded,
-      label: 'Payment',
-    ),
-    _NavItemData(
-      icon: Icons.qr_code_scanner_rounded,
-      activeIcon: Icons.qr_code_scanner_rounded,
-      label: 'Scan QR',
-    ),
-    _NavItemData(
-      icon: Icons.notifications_none_rounded,
-      activeIcon: Icons.notifications_rounded,
-      label: 'Notice',
-    ),
-  ];
+  static List<_NavItemData> _itemsFor(AppStrings s) => [
+        _NavItemData(
+          icon: Icons.home_outlined,
+          activeIcon: Icons.home_rounded,
+          label: s.navHome,
+        ),
+        _NavItemData(
+          icon: Icons.credit_card_outlined,
+          activeIcon: Icons.credit_card_rounded,
+          label: s.navPayment,
+        ),
+        _NavItemData(
+          icon: Icons.document_scanner_outlined,
+          activeIcon: Icons.document_scanner_rounded,
+          label: s.navScan,
+        ),
+        _NavItemData(
+          icon: Icons.notifications_none_rounded,
+          activeIcon: Icons.notifications_rounded,
+          label: s.navNotice,
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
+    final items = _itemsFor(AppStrings.of(context));
+
     // Respect the system font size, but cap it so labels never overflow.
     return MediaQuery.withClampedTextScaling(
       minScaleFactor: 1.0,
@@ -66,10 +69,10 @@ class CustomBottomNavigationBar extends StatelessWidget {
             height: kBarHeight,
             child: Row(
               children: [
-                for (var i = 0; i < _items.length; i++)
+                for (var i = 0; i < items.length; i++)
                   Expanded(
                     child: _NavItem(
-                      data: _items[i],
+                      data: items[i],
                       selected: i == currentIndex,
                       onTap: () => onTap(i),
                     ),
@@ -109,6 +112,8 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? AppColors.royalBlue : AppColors.royalBlueMuted;
+    // The label is normal text; the icon above keeps the royal-blue pair.
+    final labelColor = selected ? AppColors.royalBlue : AppColors.inkMuted;
 
     return Semantics(
       button: true,
@@ -147,7 +152,7 @@ class _NavItem extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: color,
+                  color: labelColor,
                   fontSize: 12.5,
                   // Same size for both states so the bar never "jumps".
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
