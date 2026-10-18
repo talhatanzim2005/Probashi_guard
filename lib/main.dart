@@ -11,9 +11,10 @@ import 'frontend/profile/profile_view.dart';
 import 'theme/app_colors.dart';
 import 'widget/app_bar.dart';
 import 'widget/bottom_navigation_bar.dart';
+import 'splash_view.dart';
 
 void main() {
-  runApp(const ProbashiGuardApp());
+  runApp(const SplashGate());
 }
 
 class ProbashiGuardApp extends StatelessWidget {
