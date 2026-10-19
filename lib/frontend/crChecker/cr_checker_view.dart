@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
-
-class _ChecklistItem {
-  bool isCompleted;
-  _ChecklistItem({required this.isCompleted});
-}
+import 'controllers/checklist_controller.dart';
 
 /// Pre-Departure Company & Travel Checklist screen.
 /// Displays company registration (CR) verification, visa validation,
@@ -20,39 +16,42 @@ class CrCheckerView extends StatefulWidget {
 
 class _CrCheckerViewState extends State<CrCheckerView> {
   bool _isChecklistExpanded = true;
+  /// Shared with the other checklist views and saved across launches.
+  final ChecklistController _checklistController = ChecklistController.instance;
 
-  /// Default checklist matching initial state (3 completed, 5 pending = 37% readiness).
-  final List<_ChecklistItem> _checklist = [
-    _ChecklistItem(isCompleted: true),
-    _ChecklistItem(isCompleted: true),
-    _ChecklistItem(isCompleted: true),
-    _ChecklistItem(isCompleted: false),
-    _ChecklistItem(isCompleted: false),
-    _ChecklistItem(isCompleted: false),
-    _ChecklistItem(isCompleted: false),
-    _ChecklistItem(isCompleted: false),
-  ];
-
-  int get _completedCount => _checklist.where((item) => item.isCompleted).length;
+  int get _completedCount => _checklistController.completed;
   double get _progressPercent =>
-      _checklist.isEmpty ? 0.0 : _completedCount / _checklist.length;
+      _checklistController.progress;
 
-  int get _nextIndex => _checklist.indexWhere((item) => !item.isCompleted);
+  int get _nextIndex => _checklistController.nextIndex;
 
   List<int> get _visibleIndexes {
     final pending = <int>[];
     final done = <int>[];
-    for (var i = 0; i < _checklist.length; i++) {
-      (_checklist[i].isCompleted ? done : pending).add(i);
+    for (var i = 0; i < _checklistController.total; i++) {
+      (_checklistController.isDone(i) ? done : pending).add(i);
     }
     final ordered = [...pending, ...done];
     return _isChecklistExpanded ? ordered : ordered.take(3).toList();
   }
 
-  void _toggleItem(int index) {
-    setState(() {
-      _checklist[index].isCompleted = !_checklist[index].isCompleted;
-    });
+  void _toggleItem(int index) => _checklistController.toggle(index);
+
+  /// A tick made on another screen (or restored from disk) repaints this one.
+  void _onChecklistChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checklistController.addListener(_onChecklistChanged);
+  }
+
+  @override
+  void dispose() {
+    _checklistController.removeListener(_onChecklistChanged);
+    super.dispose();
   }
 
   @override
@@ -141,7 +140,7 @@ class _CrCheckerViewState extends State<CrCheckerView> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: _completedCount == _checklist.length
+                        color: _completedCount == _checklistController.total
                             ? AppColors.emeraldGreen
                             : AppColors.emeraldGreen.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(20),
@@ -156,15 +155,15 @@ class _CrCheckerViewState extends State<CrCheckerView> {
                           Icon(
                             Icons.task_alt_rounded,
                             size: 13,
-                            color: _completedCount == _checklist.length
+                            color: _completedCount == _checklistController.total
                                 ? AppColors.cloudDancer
                                 : AppColors.emeraldGreen,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            s.checklistDone(_completedCount, _checklist.length),
+                            s.checklistDone(_completedCount, _checklistController.total),
                             style: TextStyle(
-                              color: _completedCount == _checklist.length
+                              color: _completedCount == _checklistController.total
                                   ? AppColors.cloudDancer
                                   : AppColors.emeraldGreen,
                               fontSize: 11,
@@ -291,7 +290,7 @@ class _CrCheckerViewState extends State<CrCheckerView> {
               label: Text(
                 _isChecklistExpanded
                     ? s.showFewerItems
-                    : s.showAllItems(_checklist.length),
+                    : s.showAllItems(_checklistController.total),
                 style: const TextStyle(
                   color: AppColors.royalBlue,
                   fontSize: 12,
@@ -307,7 +306,7 @@ class _CrCheckerViewState extends State<CrCheckerView> {
   }
 
   Widget _buildChecklistRow(AppStrings s, int index) {
-    final item = _checklist[index];
+    final isDone = _checklistController.isDone(index);
     final isNext = index == _nextIndex;
     final text = s.checklist[index];
 
@@ -319,12 +318,12 @@ class _CrCheckerViewState extends State<CrCheckerView> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: item.isCompleted
+            color: isDone
                 ? AppColors.emeraldGreen.withValues(alpha: 0.06)
                 : AppColors.cloudDancer,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: item.isCompleted
+              color: isDone
                   ? AppColors.emeraldGreen.withValues(alpha: 0.35)
                   : isNext
                       ? AppColors.royalBlue.withValues(alpha: 0.5)
@@ -342,18 +341,18 @@ class _CrCheckerViewState extends State<CrCheckerView> {
                 height: 20,
                 margin: const EdgeInsets.only(top: 1),
                 decoration: BoxDecoration(
-                  color: item.isCompleted
+                  color: isDone
                       ? AppColors.emeraldGreen
                       : AppColors.cloudDancer,
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
-                    color: item.isCompleted
+                    color: isDone
                         ? AppColors.emeraldGreen
                         : AppColors.royalBlue.withValues(alpha: 0.5),
                     width: 1.5,
                   ),
                 ),
-                child: item.isCompleted
+                child: isDone
                     ? const Icon(
                         Icons.check,
                         size: 14,
@@ -381,11 +380,11 @@ class _CrCheckerViewState extends State<CrCheckerView> {
                     Text(
                       text.title,
                       style: TextStyle(
-                        color: item.isCompleted
+                        color: isDone
                             ? AppColors.inkMuted
                             : AppColors.ink,
                         fontSize: 13,
-                        fontWeight: item.isCompleted
+                        fontWeight: isDone
                             ? FontWeight.w500
                             : FontWeight.w700,
                         height: 1.25,

@@ -25,14 +25,14 @@ let cards = [
     card_type: 'probashiMultiCurrency',
   },
   {
-    id: 'card_bkash',
-    title: 'bKash Remittance Direct',
-    provider_name: 'bKash Bangladesh',
-    card_number_masked: '•••• 5521',
+    id: 'card_visa',
+    title: 'Probashi Global Visa',
+    provider_name: 'Visa • International',
+    card_number_masked: '•••• 4242',
     balance: 24850.5,
     currency: 'BDT',
     expiry_date: '03/30',
-    card_type: 'bkashDirect',
+    card_type: 'internationalVisa',
   },
 ];
 
@@ -141,7 +141,7 @@ let transactions = [
     currency: 'BDT',
     timestamp: new Date(Date.now() - 4 * 86400000).toISOString(),
     type: 'send',
-    card_id: 'card_bkash',
+    card_id: 'card_visa',
     icon_category: 'remittance',
   },
 ];

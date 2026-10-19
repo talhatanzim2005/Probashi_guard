@@ -9,7 +9,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const ProbashiGuardApp());
+    await tester.pumpWidget(const ProbashiGuardApp(home: MainNavigationShell()));
 
     // Verify AppBar components
     expect(find.byIcon(Icons.person_rounded), findsOneWidget);
@@ -22,7 +22,7 @@ void main() {
 
     // Verify Hero Card components
     expect(find.text('Pre-Departure Company & Travel Checklist'), findsOneWidget);
-    expect(find.text('3/8 Done'), findsOneWidget);
+    expect(find.text('0/8 Done'), findsOneWidget);
 
     // Toggle a checklist item to verify interactive state
     final fourthItem = find.text('Verify BMET Smart Clearance Card via QR code scan');
@@ -33,8 +33,8 @@ void main() {
     expect(fourthItem, findsOneWidget);
     await tester.tap(fourthItem);
     await tester.pumpAndSettle();
-    // Verification count should increase from 3 to 4
-    expect(find.text('4/8 Done'), findsOneWidget);
+    // Verification count should increase from 0 to 1
+    expect(find.text('1/8 Done'), findsOneWidget);
 
     // Verify Auto-Sliding Notice Slider
     expect(find.text('Notice Board'), findsOneWidget);

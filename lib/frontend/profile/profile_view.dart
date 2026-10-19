@@ -11,6 +11,7 @@ enum ProfileAction {
   passportVisa,
   bmetCard,
   fraudChecker,
+  checklist,
   changePin,
   linkedDevices,
   notifications,
@@ -381,7 +382,7 @@ class _ProfileViewState extends State<ProfileView> {
     }
 
     return InkWell(
-      onTap: () => _do(ProfileAction.fraudChecker),
+      onTap: () => _do(ProfileAction.checklist),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),

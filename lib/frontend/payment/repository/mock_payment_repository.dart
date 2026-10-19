@@ -4,9 +4,14 @@ import '../../../theme/app_colors.dart';
 import '../models/beneficiary_model.dart';
 import '../models/transaction_model.dart';
 import '../models/wallet_card_model.dart';
+import 'payment_local_store.dart';
 import 'payment_repository.dart';
 
 class MockPaymentRepository implements PaymentRepository {
+  MockPaymentRepository() {
+    _restoreFromDevice();
+  }
+
   final List<WalletCardModel> _cards = [
     const WalletCardModel(
       id: 'card_wps',
@@ -33,15 +38,15 @@ class MockPaymentRepository implements PaymentRepository {
       accentColor: AppColors.cloudDancer,
     ),
     const WalletCardModel(
-      id: 'card_bkash',
-      title: 'bKash Remittance Direct',
-      providerName: 'bKash Bangladesh',
-      cardNumberMasked: '•••• 5521',
+      id: 'card_visa',
+      title: 'Probashi Global Visa',
+      providerName: 'Visa • International',
+      cardNumberMasked: '•••• 4242',
       balance: 24850.50,
       currency: 'BDT',
       expiryDate: '03/30',
-      cardType: CardType.bkashDirect,
-      primaryColor: Color(0xFFC4164C),
+      cardType: CardType.internationalVisa,
+      primaryColor: Color(0xFF1A1F71),
       accentColor: AppColors.cloudDancer,
     ),
   ];
@@ -211,7 +216,7 @@ class MockPaymentRepository implements PaymentRepository {
       currency: 'BDT',
       timestamp: DateTime.now().subtract(const Duration(days: 4)),
       type: TransactionType.send,
-      cardId: 'card_bkash',
+      cardId: 'card_visa',
       iconCategory: 'remittance',
     ),
     TransactionModel(
@@ -226,6 +231,23 @@ class MockPaymentRepository implements PaymentRepository {
       iconCategory: 'netflix',
     ),
   ];
+
+  /// Puts back the balances and ledger saved on this device, so a transfer
+  /// made before the app was closed is still there when it reopens.
+  void _restoreFromDevice() {
+    final balances = PaymentLocalStore.savedBalances;
+    for (var i = 0; i < _cards.length; i++) {
+      final saved = balances[_cards[i].id];
+      if (saved != null) _cards[i] = _cards[i].copyWith(balance: saved);
+    }
+    final transactions = PaymentLocalStore.savedTransactions;
+    if (transactions != null) _transactions = List.of(transactions);
+  }
+
+  void _saveToDevice() {
+    unawaited(PaymentLocalStore.saveCards(_cards));
+    unawaited(PaymentLocalStore.saveTransactions(_transactions));
+  }
 
   @override
   Future<List<WalletCardModel>> getCards() async {
@@ -260,7 +282,24 @@ class MockPaymentRepository implements PaymentRepository {
     required double exchangeRate,
     required double amountBdt,
     required double incentiveBdt,
+    required double vatOnCommission,
+    required double usdAmount,
     String? connectedAccountId,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    throw Exception(
+      'Payment Gateway Error: No payment gateway is configured. '
+      'Start the backend service (cd backend_service && npm run dev) to open Stripe Checkout.',
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> executeCardTransfer({
+    required String fromCardId,
+    required String toCardId,
+    required double amountBdt,
+    required double vatOnCommission,
+    required double usdAmount,
   }) async {
     await Future.delayed(const Duration(milliseconds: 150));
     throw Exception(
@@ -289,31 +328,38 @@ class MockPaymentRepository implements PaymentRepository {
     final cardIndex = _cards.indexWhere((c) => c.id == cardId);
     if (cardIndex != -1) {
       final currentCard = _cards[cardIndex];
-      final newBalance =
-          (currentCard.balance - amountBdt).clamp(0.0, double.infinity);
+      final newBalance = (currentCard.balance - amountBdt).clamp(
+        0.0,
+        double.infinity,
+      );
       _cards[cardIndex] = currentCard.copyWith(balance: newBalance);
     }
 
-    // The settled row replaces the pending one when the session is replayed.
+    // The settled rows replace the pending one when the session is replayed.
     _transactions.removeWhere((tx) => tx.stripeSessionId == stripeSessionId);
+    final stamp = DateTime.now();
     _transactions = [
-      TransactionModel(
-        id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
-        title: beneficiaryName,
-        subtitle: 'Remittance to $beneficiaryPhone',
-        amount: amountBdt + incentiveBdt,
+      ...TransactionModel.transferPair(
+        groupId: stripeSessionId.isNotEmpty
+            ? stripeSessionId
+            : 'tx_${stamp.millisecondsSinceEpoch}',
+        timestamp: stamp,
+        debitTitle: beneficiaryName,
+        debitSubtitle: 'Sent to $beneficiaryPhone',
+        debitAmount: sourceAmount,
+        debitCurrency: sourceCurrency,
+        debitCardId: cardId,
+        creditTitle: beneficiaryName,
+        creditSubtitle: 'Received from your $sourceCurrency card',
+        creditAmount: amountBdt + incentiveBdt,
+        creditCurrency: 'BDT',
         amountBdt: amountBdt,
-        convertedAmount: sourceAmount,
-        currency: 'BDT',
-        timestamp: DateTime.now(),
-        type: TransactionType.send,
-        status: TransactionStatus.completed,
-        cardId: cardId,
-        iconCategory: 'person',
         stripeSessionId: stripeSessionId,
+        iconCategory: 'person',
       ),
       ..._transactions,
     ];
+    _saveToDevice();
   }
 
   @override
@@ -337,19 +383,28 @@ class MockPaymentRepository implements PaymentRepository {
       balance: _cards[toIndex].balance + amount,
     );
 
-    final transferTx = TransactionModel(
-      id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
-      title: 'Inter-Card Swap',
-      subtitle: '${_cards[fromIndex].title} → ${_cards[toIndex].title}',
-      amount: amount,
-      currency: 'BDT',
-      timestamp: DateTime.now(),
-      type: TransactionType.transfer,
-      cardId: fromCardId,
-      iconCategory: 'transfer',
-    );
-
-    _transactions = [transferTx, ..._transactions];
+    final stamp = DateTime.now();
+    _transactions = [
+      ...TransactionModel.transferPair(
+        groupId: 'tx_${stamp.millisecondsSinceEpoch}',
+        timestamp: stamp,
+        debitTitle: _cards[toIndex].title,
+        debitSubtitle: 'Transfer to ${_cards[toIndex].title}',
+        debitAmount: amount,
+        debitCurrency: 'BDT',
+        debitCardId: fromCardId,
+        creditTitle: _cards[fromIndex].title,
+        creditSubtitle: 'Transfer from ${_cards[fromIndex].title}',
+        creditAmount: amount,
+        creditCurrency: 'BDT',
+        creditCardId: toCardId,
+        amountBdt: amount,
+        iconCategory: 'transfer',
+        type: TransactionType.transfer,
+      ),
+      ..._transactions,
+    ];
+    _saveToDevice();
     return true;
   }
 

@@ -1,4 +1,4 @@
-package com.example.probashi_guard
+package com.probashiguard.app
 
 import io.flutter.embedding.android.FlutterActivity
 

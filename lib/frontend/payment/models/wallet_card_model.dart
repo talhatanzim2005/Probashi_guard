@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../theme/app_colors.dart';
 
-enum CardType {
-  wpsPayroll,
-  probashiMultiCurrency,
-  bkashDirect,
-}
+enum CardType { wpsPayroll, probashiMultiCurrency, internationalVisa }
 
 class WalletCardModel {
   final String id;
@@ -77,8 +73,8 @@ class WalletCardModel {
       case 'wpsPayroll':
         type = CardType.wpsPayroll;
         break;
-      case 'bkashDirect':
-        type = CardType.bkashDirect;
+      case 'internationalVisa':
+        type = CardType.internationalVisa;
         break;
       default:
         type = CardType.probashiMultiCurrency;
@@ -96,8 +92,8 @@ class WalletCardModel {
       primaryColor: type == CardType.wpsPayroll
           ? const Color(0xFF141A29)
           : type == CardType.probashiMultiCurrency
-              ? AppColors.royalBlue
-              : const Color(0xFFD12053),
+          ? AppColors.royalBlue
+          : const Color(0xFF1A1F71),
       accentColor: type == CardType.wpsPayroll
           ? AppColors.emeraldGreen
           : AppColors.cloudDancer,

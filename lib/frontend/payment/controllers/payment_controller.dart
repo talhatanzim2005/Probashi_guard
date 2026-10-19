@@ -7,6 +7,7 @@ import '../models/beneficiary_model.dart';
 import '../models/currency_model.dart';
 import '../models/transaction_model.dart';
 import '../models/wallet_card_model.dart';
+import '../repository/payment_local_store.dart';
 import '../repository/payment_repository.dart';
 import '../repository/supabase_payment_repository.dart';
 
@@ -14,10 +15,11 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
   static final PaymentController instance = PaymentController._internal();
   factory PaymentController() => instance;
 
-  final PaymentRepository _repository;
+  // Not final: logout swaps in a fresh repository (see [resetForSignOut]).
+  PaymentRepository _repository;
 
   PaymentController._internal({PaymentRepository? repository})
-      : _repository = repository ?? SupabasePaymentRepository() {
+    : _repository = repository ?? SupabasePaymentRepository() {
     // Lets us hide the balance when the app leaves the foreground.
     WidgetsFlutterBinding.ensureInitialized().addObserver(this);
     _loadInitialSync();
@@ -27,7 +29,7 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
   /// For tests and for pointing the wallet at a different backend.
   @visibleForTesting
   PaymentController.withRepository(PaymentRepository repository)
-      : _repository = repository {
+    : _repository = repository {
     _loadInitialSync();
   }
 
@@ -54,7 +56,8 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
     return _cards[_activeCardIndex % _cards.length];
   }
 
-  CurrencyModel _selectedCurrency = CurrencyModel.supportedCurrencies[0]; // BDT by default
+  CurrencyModel _selectedCurrency =
+      CurrencyModel.supportedCurrencies[0]; // BDT by default
   CurrencyModel get selectedCurrency => _selectedCurrency;
 
   /// How long a revealed balance stays on screen before hiding itself again.
@@ -94,15 +97,15 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
         accentColor: AppColors.cloudDancer,
       ),
       const WalletCardModel(
-        id: 'card_bkash',
-        title: 'bKash Remittance Direct',
-        providerName: 'bKash Bangladesh',
-        cardNumberMasked: '•••• 5521',
+        id: 'card_visa',
+        title: 'Probashi Global Visa',
+        providerName: 'Visa • International',
+        cardNumberMasked: '•••• 4242',
         balance: 24850.50,
         currency: 'BDT',
         expiryDate: '03/30',
-        cardType: CardType.bkashDirect,
-        primaryColor: Color(0xFFC4164C),
+        cardType: CardType.internationalVisa,
+        primaryColor: Color(0xFF1A1F71),
         accentColor: AppColors.cloudDancer,
       ),
     ];
@@ -122,7 +125,9 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
       ]);
 
       _cards = results[0] as List<WalletCardModel>;
-      _beneficiaries = results[1] as List<BeneficiaryModel>;
+      _beneficiaries = _withSavedBeneficiaries(
+        results[1] as List<BeneficiaryModel>,
+      );
       _transactions = results[2] as List<TransactionModel>;
       _walletHolderName = results[3] as String;
     } catch (e) {
@@ -133,9 +138,61 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  void addBeneficiary(BeneficiaryModel beneficiary) {
-    _beneficiaries.insert(0, beneficiary);
+  /// Set by [resetForSignOut] until the next account's wallet is loaded.
+  bool _awaitingAccount = false;
+
+  /// Logout: forgets the signed-out account's wallet, in memory and on the
+  /// device, and shows the seeded cards until the next account is loaded.
+  Future<void> resetForSignOut() async {
+    hideBalance();
+    await PaymentLocalStore.clear();
+    // The offline fallback copied the old ledger into memory when it was built.
+    if (_repository is SupabasePaymentRepository) {
+      _repository = SupabasePaymentRepository();
+    }
+    _loadInitialSync();
+    _beneficiaries = [];
+    _transactions = [];
+    _activeCardIndex = 0;
+    _walletHolderName = 'Probashi Expatriate Worker';
+    _awaitingAccount = true;
     notifyListeners();
+  }
+
+  /// Loads the new account's wallet after a logout. A first login needs
+  /// nothing: the controller loads itself when the main screen first uses it.
+  Future<void> reloadAfterSignIn() async {
+    if (!_awaitingAccount) return;
+    _awaitingAccount = false;
+    await init();
+  }
+
+  void addBeneficiary(BeneficiaryModel beneficiary) {
+    _beneficiaries = [beneficiary, ..._beneficiaries];
+    notifyListeners();
+    // Kept on the device, so a recipient the person added is still there after
+    // the app is closed.
+    unawaited(
+      PaymentLocalStore.saveBeneficiaries([
+        beneficiary,
+        ...PaymentLocalStore.savedBeneficiaries,
+      ]),
+    );
+  }
+
+  /// The loaded recipients with the ones the person added on this device put
+  /// back in front. Always a growable copy: repositories may hand back an
+  /// unmodifiable list.
+  List<BeneficiaryModel> _withSavedBeneficiaries(
+    List<BeneficiaryModel> loaded,
+  ) {
+    bool alreadyListed(BeneficiaryModel b) => loaded.any(
+          (l) => l.id == b.id || l.phoneOrAccount == b.phoneOrAccount,
+        );
+    final added = PaymentLocalStore.savedBeneficiaries
+        .where((b) => !alreadyListed(b))
+        .toList();
+    return [...added, ...loaded];
   }
 
   void setActiveCardIndex(int index) {
@@ -242,7 +299,10 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
     final decimalPart = parts[1];
 
     final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-    final formattedInt = integerPart.replaceAllMapped(reg, (Match m) => '${m[1]},');
+    final formattedInt = integerPart.replaceAllMapped(
+      reg,
+      (Match m) => '${m[1]},',
+    );
     return '$formattedInt.$decimalPart';
   }
 
@@ -265,6 +325,8 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
     required double exchangeRate,
     required double amountBdt,
     required double incentiveBdt,
+    required double vatOnCommission,
+    required double usdAmount,
     String? connectedAccountId,
     String? pendingSubtitle,
   }) async {
@@ -281,6 +343,8 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
       exchangeRate: exchangeRate,
       amountBdt: amountBdt,
       incentiveBdt: incentiveBdt,
+      vatOnCommission: vatOnCommission,
+      usdAmount: usdAmount,
       connectedAccountId: connectedAccountId,
     );
 
@@ -290,8 +354,8 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
         TransactionModel(
           id: sessionId,
           title: recipient.name,
-          subtitle: pendingSubtitle ??
-              'Awaiting payment • ${recipient.providerType}',
+          subtitle:
+              pendingSubtitle ?? 'Awaiting payment • ${recipient.providerType}',
           amount: amountBdt + incentiveBdt,
           amountBdt: amountBdt,
           convertedAmount: sourceAmount,
@@ -302,6 +366,10 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
           cardId: card.id,
           iconCategory: 'remittance',
           stripeSessionId: sessionId,
+          debitedAmount: sourceAmount + vatOnCommission,
+          debitedCurrency: sourceCurrency,
+          creditedAmount: amountBdt + incentiveBdt,
+          creditedCurrency: recipient.currency,
         ),
         ..._transactions,
       ];
@@ -352,7 +420,8 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
           (tx) => tx.stripeSessionId == sessionId
               ? tx.copyWith(
                   status: TransactionStatus.completed,
-                  subtitle: settledSubtitle ??
+                  subtitle:
+                      settledSubtitle ??
                       'Remittance to ${recipient.phoneOrAccount}',
                   iconCategory: 'person',
                 )
@@ -387,7 +456,8 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
       final reloaded = results[1] as List<TransactionModel>;
 
       final row = localRow;
-      final storeHasIt = row == null ||
+      final storeHasIt =
+          row == null ||
           reloaded.any(
             (tx) => tx.stripeSessionId == keepSessionId || tx.id == row.id,
           );
@@ -405,14 +475,40 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
     if (sessionId.isEmpty) return;
     final before = _transactions.length;
     _transactions = _transactions
-        .where((tx) =>
-            tx.stripeSessionId != sessionId ||
-            tx.status != TransactionStatus.pending)
+        .where(
+          (tx) =>
+              tx.stripeSessionId != sessionId ||
+              tx.status != TransactionStatus.pending,
+        )
         .toList();
     if (_transactions.length != before) notifyListeners();
   }
 
-  Future<bool> interCardSwap({
+  // ---------------------------------------------------------------------------
+  // Card-to-card transfer. Stripe has no card-to-card primitive, so the move is
+  // charged as a USD Checkout session and the balances follow once it is paid.
+  // ---------------------------------------------------------------------------
+
+  /// Phase 1 — opens a Checkout session for the move and returns its payload,
+  /// which carries the `checkoutUrl` the caller opens in the browser.
+  Future<Map<String, dynamic>> startCardTransfer({
+    required String fromCardId,
+    required String toCardId,
+    required double amountInBdt,
+  }) {
+    return _repository.executeCardTransfer(
+      fromCardId: fromCardId,
+      toCardId: toCardId,
+      amountBdt: amountInBdt,
+      vatOnCommission: CurrencyModel.vatOnCommission(amountInBdt),
+      usdAmount: CurrencyModel.usd.convertFromBdt(
+        amountInBdt + CurrencyModel.vatOnCommission(amountInBdt),
+      ),
+    );
+  }
+
+  /// Phase 3 — moves the balances once Stripe reports the session paid.
+  Future<bool> settleCardTransfer({
     required String fromCardId,
     required String toCardId,
     required double amountInBdt,

@@ -24,6 +24,33 @@ class CurrencyModel {
     return amountInThisCurrency * rateToBdt;
   }
 
+  /// Every transfer is charged through Stripe in USD regardless of what the
+  /// sender typed or what the recipient is paid in, so the gateway sees one
+  /// settlement currency.
+  static const String settlementCurrency = 'USD';
+
+  static CurrencyModel get usd =>
+      supportedCurrencies.firstWhere((c) => c.code == settlementCurrency);
+
+  /// VAT charged on the transfer commission.
+  static const double vatOnCommissionRate = 0.0001; // 0.01%
+
+  /// The VAT this transfer owes, in whatever currency [amount] is given in.
+  static double vatOnCommission(double amount) => amount * vatOnCommissionRate;
+
+  /// Converts an amount in this currency into the USD the gateway is charged.
+  double toUsd(double amountInThisCurrency) {
+    final usdRate = usd.rateToBdt;
+    if (usdRate == 0) return 0.0;
+    return convertToBdt(amountInThisCurrency) / usdRate;
+  }
+
+  /// Converts a USD gateway amount back into this currency, which is what the
+  /// recipient's country is actually paid in.
+  double fromUsd(double amountInUsd) {
+    return convertFromBdt(amountInUsd * usd.rateToBdt);
+  }
+
   static const List<CurrencyModel> supportedCurrencies = [
     CurrencyModel(
       code: 'BDT',

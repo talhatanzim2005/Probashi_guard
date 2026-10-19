@@ -205,12 +205,12 @@ void main() {
       // Card Header
       expect(find.text('Pre-Departure Company & Travel Checklist'), findsAtLeast(1));
       expect(find.text('Check your company and documents before you fly'), findsOneWidget);
-      expect(find.text('3/8 Done'), findsOneWidget);
+      expect(find.text('0/8 Done'), findsOneWidget);
       expect(find.text('View Details'), findsOneWidget);
 
       // Readiness Progress
       expect(find.text('Departure Readiness'), findsOneWidget);
-      expect(find.text('37%'), findsOneWidget);
+      expect(find.text('0%'), findsOneWidget);
 
       // Checklist Items
       expect(find.text('NEXT STEP'), findsOneWidget);

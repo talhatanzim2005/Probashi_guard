@@ -2,8 +2,19 @@ import { Router, Request, Response } from 'express';
 import stripeClient from '../stripeClient.js';
 import { triggerPaymentTasksSafely } from '../trigger/paymentTasks.js';
 import { buildDestinationChargeData } from '../stripeConnect.js';
+import { resolveUserId, hasVerifiedPhone } from '../supabaseUser.js';
 
 const router = Router();
+
+/// Every transfer settles in USD; these convert the sender's figures into it.
+const SETTLEMENT_CURRENCY = 'usd';
+const USD_TO_BDT = 119.5;
+const VAT_ON_COMMISSION_RATE = 0.0001; // 0.01%
+
+/// Stripe rejects a USD charge under 50 cents, so that is the floor.
+function toUsdCents(amountUsd: number): number {
+  return Math.max(50, Math.round(amountUsd * 100));
+}
 
 /**
  * GET /api/rates
@@ -104,7 +115,7 @@ router.post('/destination-charge', async (req: Request, res: Response) => {
       req.body.senderEmail ||
       req.body.email ||
       req.body.userEmail ||
-      'amarname3015@gmail.com';
+      undefined;
 
     const origin = req.headers.origin || process.env.DOMAIN || 'http://localhost:3000';
     const session = await stripeClient.checkout.sessions.create({
@@ -167,6 +178,21 @@ router.get('/session-status/:sessionId', async (req: Request, res: Response) => 
  */
 router.post('/send-money', async (req: Request, res: Response) => {
   try {
+    // Who is paying. The webhook credits THIS account's wallet once Stripe
+    // reports the session paid, so the id has to come from a verified token
+    // rather than from the request body.
+    const payerUserId = await resolveUserId(req);
+
+    // Refuse an unverified account BEFORE Stripe takes anything. The matching
+    // check inside p2p_transfer guards the onward send; this one guards the
+    // charge, because a refusal after payment would strand real money.
+    if (!payerUserId || !(await hasVerifiedPhone(payerUserId))) {
+      return res.status(403).json({
+        error: 'Verify your phone number before sending money',
+        code: 'phone_not_verified',
+      });
+    }
+
     const {
       cardId,
       sourceCardId,
@@ -190,8 +216,14 @@ router.post('/send-money', async (req: Request, res: Response) => {
       bdtValue = rawSourceAmount > 0 ? rawSourceAmount * rawExchangeRate : 100;
     }
 
-    // Convert decimal BDT into smallest currency unit (poisha/cents: integer)
-    const unitAmount = Math.max(100, Math.round(bdtValue * 100));
+    // Every remittance is charged in USD, whatever the sender typed in, so the
+    // gateway only ever sees one settlement currency.
+    // The fee and the figure actually charged are derived here, never taken
+    // from the request. The sender picks how much to send; letting them also
+    // name the USD total would let the charge and the credit disagree.
+    const resolvedVat = bdtValue * VAT_ON_COMMISSION_RATE;
+    const usdValue = (bdtValue + resolvedVat) / USD_TO_BDT;
+    const unitAmount = toUsdCents(usdValue);
     const domain = process.env.DOMAIN || 'http://localhost:3000';
     // Verify the routing target before recording it. The session itself stays a
     // platform charge, but this id is persisted in metadata and replayed by the
@@ -218,17 +250,17 @@ router.post('/send-money', async (req: Request, res: Response) => {
 
     const sessionParams: any = {
       mode: 'payment',
-      customer_email: customerEmail || 'amarname3015@gmail.com',
+      customer_email: customerEmail || undefined,
       success_url: `${domain}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${domain}/cancel`,
       line_items: [
         {
           price_data: {
-            currency: 'bdt',
+            currency: SETTLEMENT_CURRENCY,
             unit_amount: unitAmount,
             product_data: {
               name: `Remittance to ${resolvedRecipientName}`,
-              description: `Probashi Guard Cross-Border Transfer (${rawSourceAmount || bdtValue} ${resolvedSourceCurrency})`,
+              description: `Probashi Guard Cross-Border Transfer (${rawSourceAmount || bdtValue} ${resolvedSourceCurrency}) • incl. VAT on commission`,
             },
           },
           quantity: 1,
@@ -246,9 +278,15 @@ router.post('/send-money', async (req: Request, res: Response) => {
         exchangeRate: String(rawExchangeRate),
         amountBdt: String(bdtValue),
         incentiveBdt: String(resolvedIncentiveBdt),
+        vatOnCommission: String(resolvedVat),
+        usdToBdt: String(USD_TO_BDT),
         recipientName: resolvedRecipientName,
         recipientPhone: resolvedRecipientPhone,
         destinationAccount: destinationAccount,
+        // Stripe metadata values must be strings, and a key whose value is
+        // undefined is dropped — so an unauthenticated call simply carries no
+        // payer, and the webhook declines to credit anyone.
+        ...(payerUserId ? { payerUserId } : {}),
       },
     };
 
@@ -303,6 +341,85 @@ router.post('/send-money', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error creating Stripe Checkout Session:', error);
+    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+  }
+});
+
+/**
+ * POST /api/checkout/card-transfer
+ * Moves funds between two of the holder's own cards. Stripe has no card-to-card
+ * primitive, so the move is charged as a USD Checkout session; the balances are
+ * only moved once that session reports paid.
+ */
+router.post('/card-transfer', async (req: Request, res: Response) => {
+  try {
+    const { fromCardId, toCardId, amountBdt, customerEmail } = req.body;
+
+    const from = String(fromCardId || '');
+    const to = String(toCardId || '');
+    if (!from || !to) {
+      return res.status(400).json({ error: 'fromCardId and toCardId are required' });
+    }
+    if (from === to) {
+      return res.status(400).json({ error: 'Source and destination card must be different' });
+    }
+
+    const bdtValue = Number(amountBdt);
+    if (!Number.isFinite(bdtValue) || bdtValue <= 0) {
+      return res.status(400).json({ error: 'amountBdt must be greater than 0' });
+    }
+
+    // Derived server-side for the same reason as /send-money: the client says
+    // how much to move, not what it costs.
+    const resolvedVat = bdtValue * VAT_ON_COMMISSION_RATE;
+    const usdValue = (bdtValue + resolvedVat) / USD_TO_BDT;
+
+    const domain = process.env.DOMAIN || 'http://localhost:3000';
+    const session = await stripeClient.checkout.sessions.create({
+      mode: 'payment',
+      customer_email: customerEmail || undefined,
+      success_url: `${domain}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${domain}/cancel`,
+      billing_address_collection: 'auto',
+      line_items: [
+        {
+          price_data: {
+            currency: SETTLEMENT_CURRENCY,
+            unit_amount: toUsdCents(usdValue),
+            product_data: {
+              name: 'Card to card transfer',
+              description: `Probashi Guard transfer ${from} to ${to} • incl. VAT on commission`,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        kind: 'card_transfer',
+        fromCardId: from,
+        toCardId: to,
+        amountBdt: String(bdtValue),
+        vatOnCommission: String(resolvedVat),
+        usdToBdt: String(USD_TO_BDT),
+      },
+    });
+
+    if (!session || !session.url) {
+      return res.status(500).json({ error: 'Stripe failed to return a checkout session URL' });
+    }
+
+    return res.status(201).json({
+      success: true,
+      checkoutUrl: session.url,
+      sessionId: session.id,
+      fromCardId: from,
+      toCardId: to,
+      amountBdt: bdtValue,
+      vatOnCommission: resolvedVat,
+      usdAmount: usdValue,
+    });
+  } catch (error: any) {
+    console.error('[Checkout] Error creating card transfer session:', error);
     return res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
 });

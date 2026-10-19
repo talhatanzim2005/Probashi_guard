@@ -1,18 +1,9 @@
-enum TransactionType {
-  send,
-  receive,
-  subscription,
-  transfer,
-}
+enum TransactionType { send, receive, subscription, transfer }
 
 /// Where a remittance stands with the gateway. A transfer is [pending] from the
 /// moment the Stripe Checkout session is created until the session reports paid,
 /// so the history row appears immediately and then settles.
-enum TransactionStatus {
-  pending,
-  completed,
-  failed,
-}
+enum TransactionStatus { pending, completed, failed }
 
 class TransactionModel {
   final String id;
@@ -42,6 +33,89 @@ class TransactionModel {
   /// replayed payment updates the existing row instead of adding a second one.
   final String? stripeSessionId;
 
+  /// What actually left the sender's bank, and in which currency. Shown on the
+  /// history row beside [creditedAmount] so both sides of the transfer are
+  /// visible without opening it.
+  final double? debitedAmount;
+  final String? debitedCurrency;
+
+  /// What the recipient's bank was credited, and in which currency.
+  final double? creditedAmount;
+  final String? creditedCurrency;
+
+  /// True when the row carries both sides of the transfer.
+  bool get hasBothLegs => debitedAmount != null && creditedAmount != null;
+
+  /// Links the debit row and the credit row written for one transfer, so the
+  /// two halves can be shown or reconciled together.
+  final String? transferGroup;
+
+  /// The two rows every transfer produces: what left the sender's card, and
+  /// what reached the destination. Both carry the same [groupId].
+  ///
+  /// Each row is one-sided on purpose — the debit shows only what was taken and
+  /// the credit only what arrived — so history reads as a real ledger rather
+  /// than one row trying to say both things at once.
+  static List<TransactionModel> transferPair({
+    required String groupId,
+    required DateTime timestamp,
+    required String debitTitle,
+    required String debitSubtitle,
+    required double debitAmount,
+    required String debitCurrency,
+    required String debitCardId,
+    required String creditTitle,
+    required String creditSubtitle,
+    required double creditAmount,
+    required String creditCurrency,
+    String? creditCardId,
+    double? amountBdt,
+    String? stripeSessionId,
+    String? iconCategory,
+    TransactionType type = TransactionType.send,
+    TransactionStatus status = TransactionStatus.completed,
+  }) {
+    final stamp = timestamp.millisecondsSinceEpoch;
+    return [
+      // Newest first: the credit is listed above the debit it came from.
+      TransactionModel(
+        id: '${groupId}_credit_$stamp',
+        title: creditTitle,
+        subtitle: creditSubtitle,
+        amount: creditAmount,
+        amountBdt: amountBdt,
+        currency: creditCurrency,
+        timestamp: timestamp,
+        type: TransactionType.receive,
+        status: status,
+        cardId: creditCardId,
+        iconCategory: iconCategory,
+        stripeSessionId: stripeSessionId,
+        transferGroup: groupId,
+        creditedAmount: creditAmount,
+        creditedCurrency: creditCurrency,
+      ),
+      TransactionModel(
+        id: '${groupId}_debit_$stamp',
+        title: debitTitle,
+        subtitle: debitSubtitle,
+        amount: debitAmount,
+        amountBdt: amountBdt,
+        convertedAmount: debitAmount,
+        currency: debitCurrency,
+        timestamp: timestamp,
+        type: type,
+        status: status,
+        cardId: debitCardId,
+        iconCategory: iconCategory,
+        stripeSessionId: stripeSessionId,
+        transferGroup: groupId,
+        debitedAmount: debitAmount,
+        debitedCurrency: debitCurrency,
+      ),
+    ];
+  }
+
   const TransactionModel({
     required this.id,
     required this.title,
@@ -57,6 +131,11 @@ class TransactionModel {
     this.avatarUrl,
     this.iconCategory,
     this.stripeSessionId,
+    this.debitedAmount,
+    this.debitedCurrency,
+    this.creditedAmount,
+    this.creditedCurrency,
+    this.transferGroup,
   });
 
   bool get isIncoming => type == TransactionType.receive;
@@ -80,6 +159,11 @@ class TransactionModel {
     String? avatarUrl,
     String? iconCategory,
     String? stripeSessionId,
+    double? debitedAmount,
+    String? debitedCurrency,
+    double? creditedAmount,
+    String? creditedCurrency,
+    String? transferGroup,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -96,6 +180,11 @@ class TransactionModel {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       iconCategory: iconCategory ?? this.iconCategory,
       stripeSessionId: stripeSessionId ?? this.stripeSessionId,
+      debitedAmount: debitedAmount ?? this.debitedAmount,
+      debitedCurrency: debitedCurrency ?? this.debitedCurrency,
+      creditedAmount: creditedAmount ?? this.creditedAmount,
+      creditedCurrency: creditedCurrency ?? this.creditedCurrency,
+      transferGroup: transferGroup ?? this.transferGroup,
     );
   }
 
@@ -115,10 +204,20 @@ class TransactionModel {
       'avatar_url': avatarUrl,
       'icon_category': iconCategory,
       'stripe_payment_id': stripeSessionId,
+      'debited_amount': debitedAmount,
+      'debited_currency': debitedCurrency,
+      'credited_amount': creditedAmount,
+      'credited_currency': creditedCurrency,
+      'transfer_group': transferGroup,
     };
   }
 
   factory TransactionModel.fromMap(Map<String, dynamic> map) {
+    // Older rows predate the explicit debit/credit columns, so fall back to the
+    // source amount and the BDT baseline, which are the same two legs.
+    final converted = (map['converted_amount'] as num?)?.toDouble();
+    final bdt = (map['amount_bdt'] as num?)?.toDouble();
+
     TransactionType type;
     switch (map['type']) {
       case 'receive':
@@ -139,9 +238,15 @@ class TransactionModel {
       title: map['title'] ?? '',
       subtitle: map['subtitle'] ?? '',
       amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
-      amountBdt: (map['amount_bdt'] as num?)?.toDouble(),
-      convertedAmount: (map['converted_amount'] as num?)?.toDouble(),
+      amountBdt: bdt,
+      convertedAmount: converted,
       currency: map['currency'] ?? 'BDT',
+      debitedAmount: (map['debited_amount'] as num?)?.toDouble() ?? converted,
+      debitedCurrency:
+          map['debited_currency']?.toString() ?? map['currency']?.toString(),
+      creditedAmount: (map['credited_amount'] as num?)?.toDouble() ?? bdt,
+      creditedCurrency: map['credited_currency']?.toString() ?? 'BDT',
+      transferGroup: map['transfer_group']?.toString(),
       timestamp: map['timestamp'] != null
           ? DateTime.tryParse(map['timestamp']) ?? DateTime.now()
           : DateTime.now(),

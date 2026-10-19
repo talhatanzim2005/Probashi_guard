@@ -459,7 +459,6 @@ class AppStrings {
       _p('Select Destination Country & Dial Code', 'দেশ ও কোড বেছে নিন');
   String get filterAll => _p('All', 'সব');
   String get filterGlobal => _p('Global', 'অন্য দেশ');
-  String get filterBank => _p('Bank', 'ব্যাংক');
   String get active => _p('Active', 'চালু');
 
   String get payFrom => _p('PAY FROM', 'যে কার্ড থেকে');
@@ -479,6 +478,14 @@ class AppStrings {
       );
   String get exchangeRate => _p('Exchange Rate', 'রেট');
   String get govtIncentive => _p('Govt Incentive', 'সরকারি প্রণোদনা');
+  String get vatOnCommission => _p('Vat on Commission', 'কমিশনের উপর ভ্যাট');
+  String get chargedInUsd => _p('Charged in USD', 'ডলারে কাটা হবে');
+  String get totalDebited => _p('Total Debited', 'মোট কাটা হবে');
+  String get usdSettlementNote => _p(
+        'Every transfer is settled in US Dollars, then paid out in the '
+            "recipient's local currency.",
+        'প্রতিটি লেনদেন ডলারে হয়, তারপর প্রাপকের দেশের মুদ্রায় দেওয়া হয়।',
+      );
 
   String get reviewAndConfirm => _p('Review & Confirm', 'দেখে নিশ্চিত করুন');
   String get reviewSubtitle => _p(
@@ -573,6 +580,10 @@ class AppStrings {
   String get fromAccount => _p('From Account', 'যে একাউন্ট থেকে');
   String get toAccount => _p('To Account', 'যে একাউন্টে');
   String get confirmTransfer => _p('Confirm Transfer', 'নিশ্চিত করুন');
+  String get sameCardTransfer => _p(
+        'Choose two different cards to transfer between',
+        'আলাদা দুটি কার্ড বেছে নিন',
+      );
   String get enterValidTransferAmount => _p(
         'Please enter a valid transfer amount',
         'সঠিক পরিমাণ লিখুন',
@@ -581,6 +592,231 @@ class AppStrings {
         'Insufficient balance on selected source card',
         'এই কার্ডে পর্যাপ্ত টাকা নেই',
       );
+
+  // ---------------------------------------------------------------------------
+  // Log in, register and email verification
+  // ---------------------------------------------------------------------------
+  String get authWelcomeBack => _p('Welcome back', 'আবার স্বাগতম');
+  String get authLoginSubtitle =>
+      _p('Log in to continue', 'চালিয়ে যেতে লগ ইন করুন');
+  String get authCreateAccount => _p('Create account', 'অ্যাকাউন্ট খুলুন');
+  String get authRegisterSubtitle =>
+      _p('Sign up to continue', 'চালিয়ে যেতে সাইন আপ করুন');
+
+  String get authFullName => _p('Full name', 'পুরো নাম');
+  String get authFullNameHint => _p('Your full name', 'আপনার পুরো নাম');
+  String get authEmail => _p('Email', 'ইমেইল');
+  String get authEmailHint => _p('Your email', 'আপনার ইমেইল');
+  String get authPassword => _p('Password', 'পাসওয়ার্ড');
+  String get authPasswordHint => _p('Your password', 'আপনার পাসওয়ার্ড');
+  String get authConfirmPassword =>
+      _p('Confirm password', 'পাসওয়ার্ড আবার লিখুন');
+  String get authConfirmPasswordHint =>
+      _p('Confirm your password', 'পাসওয়ার্ডটি আবার লিখুন');
+  String get authShowPassword => _p('Show password', 'পাসওয়ার্ড দেখান');
+  String get authHidePassword => _p('Hide password', 'পাসওয়ার্ড লুকান');
+
+  String get authForgotPassword =>
+      _p('Forgot password?', 'পাসওয়ার্ড ভুলে গেছেন?');
+  String get authResetTitle => _p('Reset password', 'পাসওয়ার্ড রিসেট করুন');
+  String get authResetSubtitle => _p(
+        "Enter your account's email and we will send you a 6-digit code",
+        'অ্যাকাউন্টের ইমেইল লিখুন, আমরা একটি ৬-সংখ্যার কোড পাঠাব',
+      );
+  String get authSendCode => _p('Send code', 'কোড পাঠান');
+  String get authNewPassword => _p('New password', 'নতুন পাসওয়ার্ড');
+  String get authNewPasswordHint =>
+      _p('Choose a new password', 'নতুন পাসওয়ার্ড দিন');
+  String get authSavePassword =>
+      _p('Save new password', 'নতুন পাসওয়ার্ড সেভ করুন');
+  String get authPasswordChanged => _p(
+        'Password changed. You are logged in.',
+        'পাসওয়ার্ড বদলানো হয়েছে। আপনি লগ ইন করেছেন।',
+      );
+  String get authSamePassword => _p(
+        'Choose a password different from your old one',
+        'পুরনো পাসওয়ার্ড থেকে আলাদা পাসওয়ার্ড দিন',
+      );
+
+  String get authLogIn => _p('Log in', 'লগ ইন');
+  String get authRegister => _p('Register', 'রেজিস্টার করুন');
+  String get authOr => _p('Or', 'অথবা');
+  String get authWithGoogle =>
+      _p('Log in with Google', 'Google দিয়ে লগ ইন করুন');
+  String get authWithGithub =>
+      _p('Log in with GitHub', 'GitHub দিয়ে লগ ইন করুন');
+  String get authNoAccount => _p("Don't have an account? ", 'অ্যাকাউন্ট নেই? ');
+  String get authHaveAccount =>
+      _p('Already have an account? ', 'আগেই অ্যাকাউন্ট আছে? ');
+
+  // Bangla puts the verb after the link, so the sentence comes in three parts.
+  String get authAgreePrefix => _p('I agree to the ', 'আমি ');
+  String get authTermsLink =>
+      _p('Terms and Privacy Policy', 'শর্তাবলি ও গোপনীয়তা নীতিতে');
+  String get authAgreeSuffix => _p('', ' সম্মত');
+
+  String get authVerifyTitle =>
+      _p('Verify your email', 'আপনার ইমেইল যাচাই করুন');
+  String authCodeSentTo(String email) => _p(
+        'We sent a 6-digit code to $email',
+        'আমরা $email-এ একটি ৬-সংখ্যার কোড পাঠিয়েছি',
+      );
+  String get authVerify => _p('Verify', 'যাচাই করুন');
+  String get authResendCode => _p('Resend code', 'আবার কোড পাঠান');
+  String authResendIn(int seconds) => _p(
+        'Resend code in ${seconds}s',
+        '$seconds সেকেন্ড পরে আবার পাঠাতে পারবেন',
+      );
+  String get authCodeResent =>
+      _p('A new code is on its way', 'নতুন কোড পাঠানো হয়েছে');
+  String get authCodeLabel => _p('6-digit code', '৬-সংখ্যার কোড');
+
+  String get authEnterName => _p('Enter your full name', 'আপনার পুরো নাম লিখুন');
+  String get authInvalidEmail =>
+      _p('Enter a valid email address', 'সঠিক ইমেইল ঠিকানা লিখুন');
+  String get authEnterPassword =>
+      _p('Enter your password', 'পাসওয়ার্ড লিখুন');
+  String get authPasswordTooShort => _p(
+        'Password must be at least 6 characters',
+        'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে',
+      );
+  String get authPasswordsMismatch =>
+      _p('Passwords do not match', 'দুটি পাসওয়ার্ড মিলছে না');
+  String get authAcceptTerms => _p(
+        'Please agree to the Terms and Privacy Policy',
+        'শর্তাবলি ও গোপনীয়তা নীতিতে সম্মতি দিন',
+      );
+  String get authCodeIncomplete =>
+      _p('Enter all 6 digits of the code', 'কোডের ৬টি সংখ্যাই লিখুন');
+  String get authCodeInvalid => _p(
+        'That code is wrong or has expired',
+        'কোডটি ভুল অথবা মেয়াদ শেষ হয়ে গেছে',
+      );
+  String get authInvalidCredentials =>
+      _p('Wrong email or password', 'ইমেইল বা পাসওয়ার্ড ভুল');
+  String get authEmailNotConfirmed => _p(
+        'Verify your email first. We sent you a new code.',
+        'আগে ইমেইল যাচাই করুন। আমরা নতুন কোড পাঠিয়েছি।',
+      );
+  String get authAccountExists => _p(
+        'An account with this email already exists. Please log in.',
+        'এই ইমেইলে আগেই অ্যাকাউন্ট আছে। লগ ইন করুন।',
+      );
+  String get authWeakPassword => _p(
+        'Choose a stronger password',
+        'আরও শক্ত পাসওয়ার্ড দিন',
+      );
+  String get authTooManyAttempts => _p(
+        'Too many attempts. Wait a minute and try again.',
+        'অনেকবার চেষ্টা হয়েছে। এক মিনিট পরে আবার চেষ্টা করুন।',
+      );
+  String get authNetworkError => _p(
+        'Could not reach the server. Check your internet.',
+        'সার্ভারে পৌঁছানো যায়নি। ইন্টারনেট সংযোগ দেখুন।',
+      );
+  String authOAuthFailed(String provider) => _p(
+        'Could not open $provider sign-in',
+        '$provider লগ ইন খোলা যায়নি',
+      );
+  String get authGenericError => _p(
+        'Something went wrong. Please try again.',
+        'কোনো সমস্যা হয়েছে। আবার চেষ্টা করুন।',
+      );
+
+  // ---------------------------------------------------------------------------
+  // Claiming a phone number (the address money is sent to)
+  // ---------------------------------------------------------------------------
+  String get authPhoneTitle =>
+      _p('Add your phone number', 'আপনার মোবাইল নম্বর দিন');
+  String get authPhoneSubtitle => _p(
+        'People send you money using this number, so it has to be yours alone.',
+        'এই নম্বরে আপনাকে টাকা পাঠানো হবে, তাই এটি শুধু আপনার হতে হবে।',
+      );
+  String get authPhoneLabel => _p('Mobile number', 'মোবাইল নম্বর');
+  String get authPhoneHint => _p('01712345678', '০১৭১২৩৪৫৬৭৮');
+  String get authPhoneSave => _p('Save number', 'নম্বর সেভ করুন');
+  String get authPhoneSaved => _p('Number saved', 'নম্বর সেভ হয়েছে');
+  String get authPhoneInvalid =>
+      _p('Enter a valid mobile number', 'সঠিক মোবাইল নম্বর লিখুন');
+  String get authPhoneTaken => _p(
+        'Another account already uses that number',
+        'এই নম্বরটি অন্য একটি অ্যাকাউন্টে ব্যবহার হচ্ছে',
+      );
+  String get authPhoneSendCode => _p('Send code', 'কোড পাঠান');
+  String authPhoneCodeSentTo(String phone) => _p(
+        'We sent a 6-digit code to $phone',
+        'আমরা $phone নম্বরে একটি ৬-সংখ্যার কোড পাঠিয়েছি',
+      );
+  String get authPhoneChangeNumber => _p('Change number', 'নম্বর বদলান');
+  String get authPhoneVerify => _p('Verify number', 'নম্বর যাচাই করুন');
+  String get authPhoneVerified => _p('Number verified', 'নম্বর যাচাই হয়েছে');
+  String get authPhoneSkip => _p('Skip for now', 'এখন থাক');
+  String get authPhoneSkipNote => _p(
+        'You can look around without a verified number, but sending and '
+            'receiving money stays locked until you verify one.',
+        'নম্বর যাচাই ছাড়াও অ্যাপ দেখতে পারবেন, তবে টাকা পাঠানো ও গ্রহণ করা '
+            'বন্ধ থাকবে।',
+      );
+  String get authPhoneNotConfigured => _p(
+        'Phone verification is not set up yet. You can continue without it '
+            'for now.',
+        'ফোন যাচাই এখনো চালু হয়নি। আপাতত এটি ছাড়াই চালিয়ে যেতে পারেন।',
+      );
+  String get authPhoneCodeWrong => _p(
+        'That code is wrong or has expired',
+        'কোডটি ভুল অথবা মেয়াদ শেষ হয়ে গেছে',
+      );
+  String get authPhoneTooManyRequests => _p(
+        'Too many attempts from this device. Try again later.',
+        'এই ডিভাইস থেকে অনেকবার চেষ্টা হয়েছে। পরে আবার চেষ্টা করুন।',
+      );
+  String get authPhoneSmsUnavailable => _p(
+        'We cannot send an SMS to this number yet. Try again later, or skip '
+            'for now.',
+        'এই নম্বরে এখনো SMS পাঠানো যাচ্ছে না। পরে আবার চেষ্টা করুন, অথবা আপাতত '
+            'এড়িয়ে যান।',
+      );
+  String get authPhoneCountryLabel => _p('Country', 'দেশ');
+  String authPhoneInvalidLength(String digits, String example) => _p(
+        'Enter a number with $digits digits, like $example',
+        '$digits সংখ্যার নম্বর লিখুন, যেমন $example',
+      );
+  String authPhoneDigitCount(int typed, String digits) => _p(
+        '$typed / $digits digits',
+        '$typed / $digits সংখ্যা',
+      );
+  String get authPhoneCodeLabel => _p('Verification code', 'যাচাই কোড');
+  String get authPhoneCodeHint => _p('6-digit code', '৬ সংখ্যার কোড');
+  String get authPhoneCodeSent => _p('Code sent', 'কোড পাঠানো হয়েছে');
+  String get authPhoneClearLabel => _p('Clear', 'মুছুন');
+  String get authPhoneTestModeNote => _p(
+        'Testing build: use a test number from the Firebase console with its '
+            'code. No SMS is sent.',
+        'টেস্টিং বিল্ড: Firebase কনসোলের টেস্ট নম্বর ও তার কোড দিন। কোনো SMS '
+            'পাঠানো হয় না।',
+      );
+  String phoneCountryName(String iso) {
+    switch (iso) {
+      case 'BD':
+        return _p('Bangladesh', 'বাংলাদেশ');
+      case 'SA':
+        return _p('Saudi Arabia', 'সৌদি আরব');
+      case 'AE':
+        return _p('United Arab Emirates', 'সংযুক্ত আরব আমিরাত');
+      case 'QA':
+        return _p('Qatar', 'কাতার');
+      case 'KW':
+        return _p('Kuwait', 'কুয়েত');
+      case 'OM':
+        return _p('Oman', 'ওমান');
+      case 'MY':
+        return _p('Malaysia', 'মালয়েশিয়া');
+      case 'SG':
+        return _p('Singapore', 'সিঙ্গাপুর');
+      default:
+        return iso;
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Generic feedback

@@ -6,10 +6,7 @@ import '../controllers/payment_controller.dart';
 class PaymentCardDeck extends StatefulWidget {
   final PaymentController controller;
 
-  const PaymentCardDeck({
-    super.key,
-    required this.controller,
-  });
+  const PaymentCardDeck({super.key, required this.controller});
 
   @override
   State<PaymentCardDeck> createState() => _PaymentCardDeckState();
@@ -42,9 +39,6 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
       minScaleFactor: 1.0,
       maxScaleFactor: 1.15,
       child: GestureDetector(
-        onTap: () {
-          controller.cycleCardToFront();
-        },
         onHorizontalDragEnd: (details) {
           if (details.primaryVelocity != null &&
               details.primaryVelocity!.abs() > 100) {
@@ -72,48 +66,59 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                 top: 0,
                 left: 14,
                 right: 14,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 320),
-                  curve: Curves.easeOutCubic,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: AppColors.royalBlue,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          thirdCard.providerName.split(' ').first.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.cloudDancer.withValues(alpha: 0.8),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => controller.setActiveCardIndex(activeIndex + 2),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.easeOutCubic,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      color: AppColors.royalBlue,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            thirdCard.providerName
+                                .split(' ')
+                                .first
+                                .toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.cloudDancer.withValues(
+                                alpha: 0.8,
+                              ),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          thirdCard.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.end,
-                          style: const TextStyle(
-                            color: AppColors.cloudDancer,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            thirdCard.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                              color: AppColors.cloudDancer,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -123,59 +128,65 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                 top: 24,
                 left: 8,
                 right: 8,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 320),
-                  curve: Curves.easeOutCubic,
-                  height: 175,
-                  decoration: BoxDecoration(
-                    color: AppColors.cloudDancer,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: AppColors.royalBlue.withValues(alpha: 0.12),
-                      width: 1,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => controller.setActiveCardIndex(activeIndex + 1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.easeOutCubic,
+                    height: 175,
+                    decoration: BoxDecoration(
+                      color: AppColors.cloudDancer,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: AppColors.royalBlue.withValues(alpha: 0.12),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          nextCard.cardNumberMasked,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.royalBlue.withValues(alpha: 0.6),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            nextCard.cardNumberMasked,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.royalBlue.withValues(alpha: 0.6),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.0,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          nextCard.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.end,
-                          style: const TextStyle(
-                            color: AppColors.royalBlue,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.2,
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            nextCard.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                              color: AppColors.royalBlue,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.2,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -249,8 +260,9 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                           decoration: BoxDecoration(
                                             color: activeCard.accentColor
                                                 .withValues(alpha: 0.18),
-                                            borderRadius:
-                                                BorderRadius.circular(6),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
                                             border: Border.all(
                                               color: activeCard.accentColor
                                                   .withValues(alpha: 0.35),
@@ -275,8 +287,9 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                         activeCard.cardNumberMasked,
                                         maxLines: 1,
                                         style: TextStyle(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.55),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.55,
+                                          ),
                                           fontSize: 11,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -310,8 +323,9 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.7),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.7,
+                                          ),
                                           fontSize: 12.5,
                                           fontWeight: FontWeight.w700,
                                           letterSpacing: 0.2,
@@ -325,45 +339,50 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                       Semantics(
                                         button: !controller.isBalanceVisible,
                                         label: controller.isBalanceVisible
-                                            ? AppStrings.of(context)
-                                                .balanceShownA11y(controller
-                                                    .formattedActiveBalance)
-                                            : AppStrings.of(context)
-                                                .balanceHiddenA11y,
+                                            ? AppStrings.of(
+                                                context,
+                                              ).balanceShownA11y(
+                                                controller
+                                                    .formattedActiveBalance,
+                                              )
+                                            : AppStrings.of(
+                                                context,
+                                              ).balanceHiddenA11y,
                                         onTap: controller.isBalanceVisible
                                             ? null
-                                            : controller.toggleBalanceVisibility,
+                                            : controller
+                                                  .toggleBalanceVisibility,
                                         excludeSemantics: true,
                                         child: GestureDetector(
                                           behavior: HitTestBehavior.opaque,
                                           onTap: controller.isBalanceVisible
                                               ? null
                                               : controller
-                                                  .toggleBalanceVisibility,
+                                                    .toggleBalanceVisibility,
                                           // Fixed height so the card never jumps
                                           // between hidden and shown states.
                                           child: SizedBox(
                                             height: 34,
                                             child: AnimatedSwitcher(
                                               duration: const Duration(
-                                                  milliseconds: 220),
+                                                milliseconds: 220,
+                                              ),
                                               transitionBuilder:
                                                   (child, animation) =>
                                                       FadeTransition(
-                                                opacity: animation,
-                                                child: child,
-                                              ),
+                                                        opacity: animation,
+                                                        child: child,
+                                                      ),
                                               layoutBuilder:
                                                   (current, previous) => Stack(
-                                                alignment:
-                                                    Alignment.centerLeft,
-                                                children: [
-                                                  ...previous,
-                                                  ?current,
-                                                ],
-                                              ),
-                                              child: controller
-                                                      .isBalanceVisible
+                                                    alignment:
+                                                        Alignment.centerLeft,
+                                                    children: [
+                                                      ...previous,
+                                                      ?current,
+                                                    ],
+                                                  ),
+                                              child: controller.isBalanceVisible
                                                   // FittedBox: a long balance
                                                   // shrinks to fit, never overflows.
                                                   ? FittedBox(
@@ -387,15 +406,15 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                                               'sans-serif',
                                                           // Equal-width digits.
                                                           fontFeatures: [
-                                                            FontFeature
-                                                                .tabularFigures(),
+                                                            FontFeature.tabularFigures(),
                                                           ],
                                                         ),
                                                       ),
                                                     )
                                                   : Row(
                                                       key: const ValueKey(
-                                                          'balance-hidden'),
+                                                        'balance-hidden',
+                                                      ),
                                                       children: [
                                                         Icon(
                                                           Icons
@@ -403,26 +422,32 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                                           size: 18,
                                                           color: Colors.white
                                                               .withValues(
-                                                                  alpha: 0.85),
+                                                                alpha: 0.85,
+                                                              ),
                                                         ),
                                                         const SizedBox(
-                                                            width: 8),
+                                                          width: 8,
+                                                        ),
                                                         Flexible(
                                                           child: Text(
-                                                            AppStrings.of(context).tapToSeeBalance,
+                                                            AppStrings.of(
+                                                              context,
+                                                            ).tapToSeeBalance,
                                                             maxLines: 1,
                                                             overflow:
                                                                 TextOverflow
                                                                     .ellipsis,
-                                                            style: const TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                              fontSize: 16,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w700,
-                                                              letterSpacing: 0.1,
-                                                            ),
+                                                            style:
+                                                                const TextStyle(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontSize: 16,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                  letterSpacing:
+                                                                      0.1,
+                                                                ),
                                                           ),
                                                         ),
                                                       ],
@@ -449,21 +474,27 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                     // Extra padding = bigger touch target (~44px)
                                     // without changing how the button looks.
                                     child: Padding(
-                                      padding:
-                                          const EdgeInsets.fromLTRB(8, 6, 0, 6),
+                                      padding: const EdgeInsets.fromLTRB(
+                                        8,
+                                        6,
+                                        0,
+                                        6,
+                                      ),
                                       child: Container(
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: Colors.white
-                                              .withValues(alpha: 0.08),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.08,
+                                          ),
                                         ),
                                         child: Icon(
                                           controller.isBalanceVisible
                                               ? Icons.visibility_outlined
                                               : Icons.visibility_off_outlined,
-                                          color: Colors.white
-                                              .withValues(alpha: 0.8),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.8,
+                                          ),
                                           size: 19,
                                         ),
                                       ),
@@ -494,8 +525,9 @@ class _PaymentCardDeckState extends State<PaymentCardDeck> {
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.end,
                                     style: TextStyle(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.65),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.65,
+                                      ),
                                       fontSize: 10.5,
                                       fontWeight: FontWeight.w600,
                                     ),

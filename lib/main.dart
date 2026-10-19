@@ -1,5 +1,11 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'firebase_options.dart';
+import 'frontend/auth/auth_session.dart';
+import 'frontend/auth/phone_setup_view.dart';
+import 'frontend/crChecker/controllers/checklist_controller.dart';
 import 'frontend/crChecker/cr_checker_view.dart';
 import 'frontend/documents/document_scan_view.dart';
 import 'frontend/documents/saved_documents_portal_view.dart';
@@ -8,6 +14,7 @@ import 'frontend/home/home_view.dart';
 import 'frontend/menu/app_menu_drawer.dart';
 import 'frontend/notice/notice_view.dart';
 import 'frontend/payment/controllers/payment_controller.dart';
+import 'frontend/payment/repository/payment_local_store.dart';
 import 'frontend/payment/payment_view.dart';
 import 'frontend/profile/controllers/profile_controller.dart';
 import 'frontend/profile/profile_view.dart';
@@ -34,26 +41,62 @@ Future<void> main() async {
   // Read the saved language first, so the app opens in it rather than
   // flashing English and then switching.
   await LanguageController.instance.load();
+  // Everything the person has saved on this device comes back before the first
+  // frame, so no screen flashes its defaults and then jumps.
+  await Future.wait([
+    ChecklistController.instance.load(),
+    ProfileController.instance.load(),
+    PaymentLocalStore.load(),
+  ]);
   await _initSupabase();
-  runApp(const SplashGate());
+  await _initFirebase();
+  runApp(const ProbashiGuardApp());
 }
 
-/// The document vault and transaction history are scoped to a Supabase user, so
-/// every device signs in anonymously and row-level security keeps its rows private.
-/// A failure here is not fatal: the app still runs, but scans are not saved.
+/// Restores a saved login, if any. Nobody is signed in anonymously any more:
+/// the login screen comes first, so the vault and history always belong to a
+/// real account. (Phones still holding an older anonymous session have its
+/// data moved over at login — see `lib/frontend/auth/auth_session.dart`.)
+/// A failure here is not fatal: the app still opens, but cannot log in.
 Future<void> _initSupabase() async {
   try {
+    // ignore: deprecated_member_use
     await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseKey);
-    final auth = Supabase.instance.client.auth;
-    if (auth.currentUser != null) return;
-    await auth.signInAnonymously().timeout(const Duration(seconds: 8));
   } catch (e) {
-    debugPrint('[main] Supabase unavailable; the document vault is disabled: $e');
+    debugPrint('[main] Supabase unavailable; login and the vault are disabled: $e');
+  }
+}
+
+/// Firebase is used for ONE thing: proving a phone number over SMS. It is not
+/// an identity system here — Supabase is.
+///
+/// It is absent until `google-services.json` / `GoogleService-Info.plist` are
+/// in place, and initialising without them throws. That is not fatal: the
+/// phone screen notices Firebase is missing, says verification is not set up
+/// and lets the person carry on unverified, which only costs them the ability
+/// to move money.
+///
+/// Web and Android get their config differently. A browser has no
+/// google-services.json, and `initializeApp()` with no options there means
+/// "use the app the HTML page already created" — none exists, which is the
+/// `[core/no-app]` error — so web needs the generated options. Android reads
+/// google-services.json through the Gradle plugin and takes no options;
+/// `DefaultFirebaseOptions.currentPlatform` deliberately throws for it, since
+/// only the web app was generated (regenerating Android through flutterfire
+/// would rewrite the conditional Gradle setup).
+Future<void> _initFirebase() async {
+  try {
+    await Firebase.initializeApp(
+      options: kIsWeb ? DefaultFirebaseOptions.currentPlatform : null,
+    );
+  } catch (e) {
+    debugPrint('[main] Firebase not configured; phone verification is off: $e');
   }
 }
 
 class ProbashiGuardApp extends StatelessWidget {
-  const ProbashiGuardApp({super.key});
+  final Widget? home;
+  const ProbashiGuardApp({super.key, this.home});
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +131,7 @@ class ProbashiGuardApp extends StatelessWidget {
               displayColor: AppColors.ink,
             ),
       ),
-      home: const MainNavigationShell(),
+      home: home ?? const SplashView(),
     );
   }
 }
@@ -119,6 +162,18 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     );
   }
 
+  /// Brings the person to the checklist card on Home, from anywhere (the
+  /// profile banner is on a pushed screen, so the shell has to come back first).
+  void _openChecklist() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _onTabSelected(0);
+    // The Home tab may only just have been built; wait a frame so it is
+    // listening before the scroll is requested.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => ChecklistController.instance.requestFocus(),
+    );
+  }
+
   /// Checking a document for fraud *is* the scanner, so Fraud Checker opens it.
   /// From a pushed screen (the profile page) the shell has to come back first.
   void _openFraudChecker() {
@@ -134,6 +189,17 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           controller: _profileController,
           onAction: _onProfileAction,
         ),
+      ),
+    );
+  }
+
+  /// Profile > Update Phone Number: the same verify screen as after login,
+  /// pushed on top of the profile so a verified number comes back to it.
+  void _openPhoneSetup() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PhoneSetupView(openedFromProfile: true),
       ),
     );
   }
@@ -210,8 +276,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       case MenuDestination.shareApp:
         _comingSoon('Share App');
       case MenuDestination.logout:
-        // TODO(backend): clear the session and go to the login screen.
-        _comingSoon('Log out');
+        // The drawer has already asked "Log out?".
+        signOut(context);
     }
   }
 
@@ -219,9 +285,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     switch (action) {
       case ProfileAction.fraudChecker:
         _openFraudChecker();
+      case ProfileAction.checklist:
+        _openChecklist();
       case ProfileAction.logout:
-        // TODO(backend): clear the session and go to the login screen.
-        _comingSoon('Log out');
+        // The profile screen has already asked "Log out?".
+        signOut(context);
       case ProfileAction.editProfile:
         _comingSoon('Edit Profile');
       case ProfileAction.savedDocuments:
@@ -237,7 +305,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       case ProfileAction.notifications:
         _comingSoon('Notification Management');
       case ProfileAction.updatePhone:
-        _comingSoon('Update Phone Number');
+        _openPhoneSetup();
       case ProfileAction.helpSupport:
         _comingSoon('Help & Support');
       case ProfileAction.about:

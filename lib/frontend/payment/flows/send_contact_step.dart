@@ -36,10 +36,9 @@ class _SendContactStepState extends State<SendContactStep> {
     if (_selectedFilter == '🇧🇩 Bangladesh') return b.countryCode == 'BD';
     if (_selectedFilter == '🇸🇦 Saudi') return b.countryCode == 'SA';
     if (_selectedFilter == '🇦🇪 UAE') return b.countryCode == 'AE';
-    if (_selectedFilter == 'Global') return !['BD', 'SA', 'AE'].contains(b.countryCode);
-    if (_selectedFilter == 'bKash') return b.providerType.toLowerCase() == 'bkash';
-    if (_selectedFilter == 'Nagad') return b.providerType.toLowerCase() == 'nagad';
-    if (_selectedFilter == 'Bank') return b.providerType.toLowerCase().contains('bank');
+    if (_selectedFilter == 'Global') {
+      return !['BD', 'SA', 'AE'].contains(b.countryCode);
+    }
     return true;
   }
 
@@ -68,10 +67,7 @@ class _SendContactStepState extends State<SendContactStep> {
         const SizedBox(height: 4),
         Text(
           s.selectRecipientSubtitle,
-          style: const TextStyle(
-            color: AppColors.inkMuted,
-            fontSize: 13,
-          ),
+          style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
         ),
         const SizedBox(height: 16),
 
@@ -97,12 +93,19 @@ class _SendContactStepState extends State<SendContactStep> {
               // Country Dial Code Selector for new numbers
               InkWell(
                 onTap: _showCountryPickerSheet,
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(16),
+                ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.royalBlue.withValues(alpha: 0.05),
-                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(15)),
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(15),
+                    ),
                     border: Border(
                       right: BorderSide(
                         color: AppColors.royalBlue.withValues(alpha: 0.12),
@@ -167,7 +170,10 @@ class _SendContactStepState extends State<SendContactStep> {
                           )
                         : null,
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
@@ -180,48 +186,51 @@ class _SendContactStepState extends State<SendContactStep> {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            children: <({String key, String label})>[
-              (key: 'All', label: s.filterAll),
-              (key: '🇧🇩 Bangladesh', label: '🇧🇩 Bangladesh'),
-              (key: '🇸🇦 Saudi', label: '🇸🇦 Saudi'),
-              (key: '🇦🇪 UAE', label: '🇦🇪 UAE'),
-              (key: 'Global', label: s.filterGlobal),
-              (key: 'bKash', label: 'bKash'),
-              (key: 'Nagad', label: 'Nagad'),
-              (key: 'Bank', label: s.filterBank),
-            ].map((filter) {
-              final isSelected = _selectedFilter == filter.key;
-              return Padding(
-                padding: const EdgeInsets.only(right: 6.0),
-                child: ChoiceChip(
-                  label: Text(filter.label),
-                  selected: isSelected,
-                  selectedColor: AppColors.royalBlue,
-                  backgroundColor: Colors.white,
-                  labelStyle: TextStyle(
-                    color: isSelected ? AppColors.cloudDancer : AppColors.royalBlue,
-                    fontSize: 11.5,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(
-                      color: AppColors.royalBlue.withValues(alpha: isSelected ? 0 : 0.16),
+            children:
+                <({String key, String label})>[
+                  (key: 'All', label: s.filterAll),
+                  (key: '🇧🇩 Bangladesh', label: '🇧🇩 Bangladesh'),
+                  (key: '🇸🇦 Saudi', label: '🇸🇦 Saudi'),
+                  (key: '🇦🇪 UAE', label: '🇦🇪 UAE'),
+                  (key: 'Global', label: s.filterGlobal),
+                ].map((filter) {
+                  final isSelected = _selectedFilter == filter.key;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6.0),
+                    child: ChoiceChip(
+                      label: Text(filter.label),
+                      selected: isSelected,
+                      selectedColor: AppColors.royalBlue,
+                      backgroundColor: Colors.white,
+                      labelStyle: TextStyle(
+                        color: isSelected
+                            ? AppColors.cloudDancer
+                            : AppColors.royalBlue,
+                        fontSize: 11.5,
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: AppColors.royalBlue.withValues(
+                            alpha: isSelected ? 0 : 0.16,
+                          ),
+                        ),
+                      ),
+                      onSelected: (val) {
+                        if (val) setState(() => _selectedFilter = filter.key);
+                      },
                     ),
-                  ),
-                  onSelected: (val) {
-                    if (val) setState(() => _selectedFilter = filter.key);
-                  },
-                ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
           ),
         ),
         const SizedBox(height: 12),
 
         // Custom Instant Send banner if user is typing a new number
-        if (_searchQuery.isNotEmpty)
-          _buildQuickSendNewNumberBanner(),
+        if (_searchQuery.isNotEmpty) _buildQuickSendNewNumberBanner(),
 
         // Beneficiaries List
         Expanded(
@@ -297,15 +306,16 @@ class _SendContactStepState extends State<SendContactStep> {
             shape: BoxShape.circle,
           ),
           child: const Center(
-            child: Icon(Icons.send_rounded, color: AppColors.cloudDancer, size: 18),
+            child: Icon(
+              Icons.send_rounded,
+              color: AppColors.cloudDancer,
+              size: 18,
+            ),
           ),
         ),
         title: Row(
           children: [
-            Text(
-              _selectedCountry.flag,
-              style: const TextStyle(fontSize: 15),
-            ),
+            Text(_selectedCountry.flag, style: const TextStyle(fontSize: 15)),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -514,7 +524,9 @@ class _SendContactStepState extends State<SendContactStep> {
                       c.name,
                       style: TextStyle(
                         color: AppColors.royalBlue,
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight: isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                         fontSize: 14,
                       ),
                     ),
