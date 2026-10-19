@@ -12,6 +12,8 @@ class SendConfirmStep extends StatelessWidget {
   final String sourceCurrency;
   final double destinationAmount;
   final String destinationCurrency;
+  final double vatOnCommission;
+  final double usdAmount;
   final Future<bool> Function() onConfirmed;
 
   const SendConfirmStep({
@@ -22,6 +24,8 @@ class SendConfirmStep extends StatelessWidget {
     required this.sourceCurrency,
     required this.destinationAmount,
     required this.destinationCurrency,
+    required this.vatOnCommission,
+    required this.usdAmount,
     required this.onConfirmed,
   });
 
@@ -45,10 +49,7 @@ class SendConfirmStep extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             s.reviewSubtitle,
-            style: const TextStyle(
-              color: AppColors.inkMuted,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
           ),
           const SizedBox(height: 18),
 
@@ -108,21 +109,42 @@ class SendConfirmStep extends StatelessWidget {
                 ),
 
                 // Breakdown rows
-                _buildReceiptRow(s.stepRecipient,
-                    '${recipient.countryFlag} ${recipient.name}'),
-                _buildReceiptRow(s.destinationCountry,
-                    '${recipient.countryFlag} ${recipient.countryName}'),
+                _buildReceiptRow(
+                  s.stepRecipient,
+                  '${recipient.countryFlag} ${recipient.name}',
+                ),
+                _buildReceiptRow(
+                  s.destinationCountry,
+                  '${recipient.countryFlag} ${recipient.countryName}',
+                ),
                 _buildReceiptRow(s.accountOrPhone, recipient.phoneOrAccount),
                 _buildReceiptRow(s.channelProvider, recipient.providerType),
                 _buildReceiptRow(
                   s.sourceDeduction,
                   '$sourceCurrency ${sourceAmount.toStringAsFixed(2)}',
                 ),
-                _buildReceiptRow(s.debitedFrom,
-                    '${sourceCard.title} (${sourceCard.cardNumberMasked})'),
+                _buildReceiptRow(
+                  s.debitedFrom,
+                  '${sourceCard.title} (${sourceCard.cardNumberMasked})',
+                ),
                 _buildReceiptRow(s.transferFee, s.feeFree, isPositive: true),
-                _buildReceiptRow(s.settlementSpeed, s.instantVerified,
-                    isPositive: true),
+                _buildReceiptRow(
+                  '${s.vatOnCommission} (0.01%)',
+                  '$sourceCurrency ${vatOnCommission.toStringAsFixed(2)}',
+                ),
+                _buildReceiptRow(
+                  s.totalDebited,
+                  '$sourceCurrency ${(sourceAmount + vatOnCommission).toStringAsFixed(2)}',
+                ),
+                _buildReceiptRow(
+                  s.chargedInUsd,
+                  'USD ${usdAmount.toStringAsFixed(2)}',
+                ),
+                _buildReceiptRow(
+                  s.settlementSpeed,
+                  s.instantVerified,
+                  isPositive: true,
+                ),
               ],
             ),
           ),
@@ -163,17 +185,18 @@ class SendConfirmStep extends StatelessWidget {
           const SizedBox(height: 24),
 
           // Hold to Confirm Button
-          HoldToConfirmButton(
-            onConfirmed: onConfirmed,
-            label: s.holdToConfirm,
-          ),
+          HoldToConfirmButton(onConfirmed: onConfirmed, label: s.holdToConfirm),
           const SizedBox(height: 12),
         ],
       ),
     );
   }
 
-  Widget _buildReceiptRow(String label, String value, {bool isPositive = false}) {
+  Widget _buildReceiptRow(
+    String label,
+    String value, {
+    bool isPositive = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(

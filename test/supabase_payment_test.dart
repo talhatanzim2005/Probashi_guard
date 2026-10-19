@@ -48,6 +48,8 @@ void main() {
           exchangeRate: 31.85,
           amountBdt: 3185.0,
           incentiveBdt: 79.625,
+          vatOnCommission: 0.3185,
+          usdAmount: 26.66,
         ),
         throwsA(predicate((e) => e.toString().contains('Payment Gateway Error'))),
       );
@@ -67,6 +69,8 @@ void main() {
           exchangeRate: 31.85,
           amountBdt: 3185.0,
           incentiveBdt: 79.625,
+          vatOnCommission: 0.3185,
+          usdAmount: 26.66,
         ),
         throwsA(predicate((e) => e.toString().contains('Payment Gateway Error'))),
       );
@@ -92,6 +96,8 @@ void main() {
         exchangeRate: 31.85,
         amountBdt: 3185.0,
         incentiveBdt: 79.625,
+        vatOnCommission: 0.3185,
+        usdAmount: 26.66,
       );
 
       expect(res['checkoutUrl'], 'https://checkout.stripe.com/c/pay/cs_test_mock');

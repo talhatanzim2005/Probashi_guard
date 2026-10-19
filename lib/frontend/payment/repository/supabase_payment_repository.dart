@@ -24,9 +24,9 @@ class SupabasePaymentRepository implements PaymentRepository {
     this.client,
     String? backendBaseUrl,
     http.Client? httpClient,
-  })  : _backendBaseUrl = backendBaseUrl ?? _defaultBaseUrl,
-        _httpClient = httpClient ?? http.Client(),
-        _fallbackRepository = MockPaymentRepository();
+  }) : _backendBaseUrl = backendBaseUrl ?? _defaultBaseUrl,
+       _httpClient = httpClient ?? http.Client(),
+       _fallbackRepository = MockPaymentRepository();
 
   SupabaseClient? get _supabase {
     if (client != null) return client;
@@ -35,6 +35,24 @@ class SupabasePaymentRepository implements PaymentRepository {
     } catch (_) {
       return null;
     }
+  }
+
+  /// JSON headers plus the signed-in person's Supabase access token.
+  ///
+  /// The backend identifies the payer from this token alone, then refuses an
+  /// account with no verified phone. Without it every request looks like a
+  /// stranger's, so even a verified account was told "Verify your phone number
+  /// before sending money".
+  Map<String, String> get _authHeaders {
+    final headers = {'Content-Type': 'application/json'};
+    try {
+      final token = _supabase?.auth.currentSession?.accessToken;
+      if (token != null) headers['Authorization'] = 'Bearer $token';
+    } catch (e) {
+      // Supabase never initialised (offline first launch, widget tests).
+      debugPrint('[SupabasePaymentRepository] no access token to send: $e');
+    }
+    return headers;
   }
 
   static String get _defaultBaseUrl {
@@ -60,19 +78,26 @@ class SupabasePaymentRepository implements PaymentRepository {
             .timeout(const Duration(seconds: 4));
 
         if (records.isNotEmpty) {
-          final firstRecord = records.first;
-          final dynamic rawBalance = firstRecord['balance_bdt'];
-          final double liveBalance = rawBalance is num
-              ? rawBalance.toDouble()
-              : (double.tryParse(rawBalance?.toString() ?? '') ?? 98420.12);
+          // One wallet row per card. Older databases hold a single row with no
+          // card_id; that one still stands for the WPS card.
+          final balances = <String, double>{};
+          for (final row in records) {
+            final cardId = row['card_id']?.toString() ?? 'card_wps';
+            final raw = row['balance_bdt'];
+            final balance = raw is num
+                ? raw.toDouble()
+                : double.tryParse(raw?.toString() ?? '');
+            if (balance != null) balances[cardId] = balance;
+          }
 
           final baseCards = await _fallbackRepository.getCards();
-          return baseCards.map((card) {
-            if (card.id == 'card_wps') {
-              return card.copyWith(balance: liveBalance);
-            }
-            return card;
-          }).toList();
+          return baseCards
+              .map(
+                (card) => balances.containsKey(card.id)
+                    ? card.copyWith(balance: balances[card.id])
+                    : card,
+              )
+              .toList();
         }
       } catch (e) {
         debugPrint('[SupabasePaymentRepository] getCards offline fallback: $e');
@@ -101,21 +126,23 @@ class SupabasePaymentRepository implements PaymentRepository {
             return BeneficiaryModel(
               id: record['id']?.toString() ?? '',
               name: name,
-              phoneOrAccount: record['phone_number']?.toString() ??
+              phoneOrAccount:
+                  record['phone_number']?.toString() ??
                   record['phone_or_account']?.toString() ??
                   '',
-              providerType: record['provider']?.toString() ??
+              providerType:
+                  record['provider']?.toString() ??
                   record['provider_type']?.toString() ??
                   'bKash',
               avatarUrl: record['avatar_url']?.toString() ?? '',
               initials: name.isNotEmpty
                   ? (name
-                      .trim()
-                      .split(' ')
-                      .map((p) => p.isNotEmpty ? p[0] : '')
-                      .take(2)
-                      .join('')
-                      .toUpperCase())
+                        .trim()
+                        .split(' ')
+                        .map((p) => p.isNotEmpty ? p[0] : '')
+                        .take(2)
+                        .join('')
+                        .toUpperCase())
                   : 'U',
               isRecent: true,
               countryCode: countryCode,
@@ -128,7 +155,9 @@ class SupabasePaymentRepository implements PaymentRepository {
           }).toList();
         }
       } catch (e) {
-        debugPrint('[SupabasePaymentRepository] getBeneficiaries offline fallback: $e');
+        debugPrint(
+          '[SupabasePaymentRepository] getBeneficiaries offline fallback: $e',
+        );
       }
     }
     return _fallbackRepository.getBeneficiaries();
@@ -181,26 +210,32 @@ class SupabasePaymentRepository implements PaymentRepository {
                 ? rawConverted.toDouble()
                 : double.tryParse(rawConverted?.toString() ?? '');
 
-            final rawAmount = record['amount'] ?? record['amount_bdt'] ?? record['converted_amount'];
+            final rawAmount =
+                record['amount'] ??
+                record['amount_bdt'] ??
+                record['converted_amount'];
             final double amount = rawAmount is num
                 ? rawAmount.toDouble()
                 : (double.tryParse(rawAmount?.toString() ?? '') ?? 0.0);
 
             final DateTime timestamp = record['created_at'] != null
                 ? (DateTime.tryParse(record['created_at'].toString()) ??
-                    DateTime.now())
+                      DateTime.now())
                 : (record['timestamp'] != null
-                    ? (DateTime.tryParse(record['timestamp'].toString()) ??
-                        DateTime.now())
-                    : DateTime.now());
+                      ? (DateTime.tryParse(record['timestamp'].toString()) ??
+                            DateTime.now())
+                      : DateTime.now());
 
             return TransactionModel(
-              id: record['id']?.toString() ??
+              id:
+                  record['id']?.toString() ??
                   'tx_${timestamp.millisecondsSinceEpoch}',
-              title: record['title']?.toString() ??
+              title:
+                  record['title']?.toString() ??
                   record['receiver_phone']?.toString() ??
                   'Remittance Recipient',
-              subtitle: record['subtitle']?.toString() ??
+              subtitle:
+                  record['subtitle']?.toString() ??
                   'Remittance to ${record['receiver_phone'] ?? 'Verified Account'}',
               amount: amount,
               amountBdt: amountBdt,
@@ -211,14 +246,36 @@ class SupabasePaymentRepository implements PaymentRepository {
               status: TransactionModel.parseStatus(record['status']),
               cardId: record['card_id']?.toString() ?? 'card_wps',
               avatarUrl: record['avatar_url']?.toString(),
-              iconCategory: record['icon_category']?.toString() ??
+              iconCategory:
+                  record['icon_category']?.toString() ??
                   (type == TransactionType.receive ? 'person' : 'send'),
               stripeSessionId: record['stripe_payment_id']?.toString(),
+              // Both sides of the transfer: what the sender's bank was debited
+              // (source amount and currency) and what the recipient's bank was
+              // credited (the BDT amount plus any government incentive).
+              debitedAmount: type == TransactionType.send
+                  ? convertedAmount
+                  : (type == TransactionType.transfer ? amountBdt : null),
+              debitedCurrency: record['currency']?.toString() ?? 'BDT',
+              creditedAmount: amountBdt == null
+                  ? null
+                  : (amountBdt +
+                            (type == TransactionType.send
+                                ? (num.tryParse(
+                                        record['incentive_bdt']?.toString() ??
+                                            '',
+                                      ) ??
+                                      0)
+                                : 0))
+                        .toDouble(),
+              creditedCurrency: 'BDT',
             );
           }).toList();
         }
       } catch (e) {
-        debugPrint('[SupabasePaymentRepository] getTransactions offline fallback: $e');
+        debugPrint(
+          '[SupabasePaymentRepository] getTransactions offline fallback: $e',
+        );
       }
     }
     return _fallbackRepository.getTransactions(cardId: cardId);
@@ -233,16 +290,24 @@ class SupabasePaymentRepository implements PaymentRepository {
     required double exchangeRate,
     required double amountBdt,
     required double incentiveBdt,
+    required double vatOnCommission,
+    required double usdAmount,
     String? connectedAccountId,
   }) async {
     final String beneficiaryName = beneficiary is BeneficiaryModel
         ? beneficiary.name
-        : (beneficiary is Map ? (beneficiary['name']?.toString() ?? '') : beneficiary.toString());
+        : (beneficiary is Map
+              ? (beneficiary['name']?.toString() ?? '')
+              : beneficiary.toString());
     final String beneficiaryPhone = beneficiary is BeneficiaryModel
         ? beneficiary.phoneOrAccount
         : (beneficiary is Map
-            ? (beneficiary['phone'] ?? beneficiary['phone_number'] ?? beneficiary['phoneOrAccount'] ?? '+8801700000000').toString()
-            : '+8801700000000');
+              ? (beneficiary['phone'] ??
+                        beneficiary['phone_number'] ??
+                        beneficiary['phoneOrAccount'] ??
+                        '+8801700000000')
+                    .toString()
+              : '+8801700000000');
 
     // Make live POST request to backend remittance endpoint
     http.Response response;
@@ -250,7 +315,7 @@ class SupabasePaymentRepository implements PaymentRepository {
       response = await _httpClient
           .post(
             Uri.parse('$_backendBaseUrl/api/checkout/send-money'),
-            headers: {'Content-Type': 'application/json'},
+            headers: _authHeaders,
             body: jsonEncode({
               'cardId': cardId,
               'sourceCardId': cardId,
@@ -262,15 +327,22 @@ class SupabasePaymentRepository implements PaymentRepository {
               'exchangeRate': exchangeRate,
               'amountBdt': amountBdt,
               'incentiveBdt': incentiveBdt,
+              'vatOnCommission': vatOnCommission,
+              'usdAmount': usdAmount,
               'destinationAmount': amountBdt + incentiveBdt,
               'destinationCurrency': 'BDT',
-              'connectedAccountId': connectedAccountId ?? 'acct_1URCKREQ1XrhmDDe',
+              'connectedAccountId':
+                  connectedAccountId ?? 'acct_1URCKREQ1XrhmDDe',
             }),
           )
           .timeout(const Duration(seconds: 10));
     } catch (netErr) {
-      debugPrint('[SupabasePaymentRepository] Network error connecting to backend: $netErr');
-      throw Exception('Payment Gateway Error: Unable to connect to payment server. Please ensure backend service is running.');
+      debugPrint(
+        '[SupabasePaymentRepository] Network error connecting to backend: $netErr',
+      );
+      throw Exception(
+        'Payment Gateway Error: Unable to connect to payment server. Please ensure backend service is running.',
+      );
     }
 
     if (response.statusCode != 200 && response.statusCode != 201) {
@@ -288,20 +360,27 @@ class SupabasePaymentRepository implements PaymentRepository {
     try {
       data = jsonDecode(response.body) as Map<String, dynamic>;
     } catch (_) {
-      throw Exception('Payment Gateway Error: Invalid response from payment server.');
+      throw Exception(
+        'Payment Gateway Error: Invalid response from payment server.',
+      );
     }
 
-    final String? checkoutUrl = data['checkoutUrl']?.toString() ??
+    final String? checkoutUrl =
+        data['checkoutUrl']?.toString() ??
         data['transaction']?['checkout_url']?.toString();
 
     if (checkoutUrl == null ||
         checkoutUrl.trim().isEmpty ||
-        (!checkoutUrl.startsWith('http://') && !checkoutUrl.startsWith('https://'))) {
-      throw Exception('Payment Gateway Error: Malformed or missing Checkout URL returned by gateway.');
+        (!checkoutUrl.startsWith('http://') &&
+            !checkoutUrl.startsWith('https://'))) {
+      throw Exception(
+        'Payment Gateway Error: Malformed or missing Checkout URL returned by gateway.',
+      );
     }
 
     final txMap = data['transaction'] as Map<String, dynamic>?;
-    final String sessionId = data['sessionId']?.toString() ??
+    final String sessionId =
+        data['sessionId']?.toString() ??
         txMap?['stripe_payment_id']?.toString() ??
         txMap?['id']?.toString() ??
         'cs_${DateTime.now().millisecondsSinceEpoch}';
@@ -330,7 +409,11 @@ class SupabasePaymentRepository implements PaymentRepository {
   Future<bool> verifyCheckoutSession(String sessionId) async {
     try {
       final response = await _httpClient
-          .get(Uri.parse('$_backendBaseUrl/api/checkout/session-status/$sessionId'))
+          .get(
+            Uri.parse(
+              '$_backendBaseUrl/api/checkout/session-status/$sessionId',
+            ),
+          )
           .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -369,72 +452,123 @@ class SupabasePaymentRepository implements PaymentRepository {
               .limit(1)
               .timeout(const Duration(seconds: 4));
           if (existing.isNotEmpty) {
-            debugPrint('[SupabasePaymentRepository] $stripeSessionId already recorded');
+            debugPrint(
+              '[SupabasePaymentRepository] $stripeSessionId already recorded',
+            );
             return;
           }
         }
 
         final currentUserId = sb.auth.currentUser?.id;
-        String? currentWalletPhone;
-        double currentBalance = 98420.12;
-        dynamic walletRowId;
-
-        final walletRecords = await sb
-            .from('wallets')
-            .select()
-            .timeout(const Duration(seconds: 4));
-
-        if (walletRecords.isNotEmpty) {
-          final firstWallet = walletRecords.first;
-          walletRowId = firstWallet['id'];
-          currentWalletPhone = firstWallet['phone']?.toString();
-          final rawBalance = firstWallet['balance_bdt'];
-          currentBalance = rawBalance is num
-              ? rawBalance.toDouble()
-              : (double.tryParse(rawBalance?.toString() ?? '') ?? 98420.12);
-        }
-
-        final senderPhone = currentWalletPhone ?? '+8801700000000';
+        final wallet = await _walletRowFor(sb, cardId);
+        final senderPhone = wallet?['phone']?.toString() ?? '+8801700000000';
         final createdAtIso = DateTime.now().toUtc().toIso8601String();
-
-        final transactionData = {
+        final shared = <String, dynamic>{
           'sender_id': currentUserId,
           'receiver_id': null,
           'sender_phone': senderPhone,
           'receiver_phone': beneficiaryPhone,
-          'title': beneficiaryName,
-          'subtitle': 'Remittance to $beneficiaryPhone',
-          'amount_bdt': amountBdt,
-          'converted_amount': sourceAmount,
-          'currency': sourceCurrency,
           'exchange_rate': exchangeRate,
-          'incentive_bdt': incentiveBdt,
-          'type': 'send',
+          'amount_bdt': amountBdt,
           'status': 'completed',
-          'card_id': cardId,
-          'icon_category': 'person',
           'stripe_payment_id': stripeSessionId,
+          'transfer_group': stripeSessionId,
+          'icon_category': 'person',
           'created_at': createdAtIso,
         };
 
-        await sb.from('transactions').insert(transactionData);
+        // Double entry: what left the sender's card, and what the recipient was
+        // credited. History then shows both sides of the same transfer.
+        await sb.from('transactions').insert([
+          {
+            ...shared,
+            'direction': 'debit',
+            'type': 'send',
+            'title': beneficiaryName,
+            'subtitle': 'Sent to $beneficiaryPhone',
+            'amount': sourceAmount,
+            'converted_amount': sourceAmount,
+            'currency': sourceCurrency,
+            'incentive_bdt': 0,
+            'card_id': cardId,
+          },
+          {
+            ...shared,
+            'direction': 'credit',
+            'type': 'receive',
+            'title': beneficiaryName,
+            'subtitle': 'Received from your $sourceCurrency card',
+            'amount': amountBdt + incentiveBdt,
+            'converted_amount': sourceAmount,
+            'currency': 'BDT',
+            'incentive_bdt': incentiveBdt,
+            'card_id': null,
+          },
+        ]);
 
-        final newBalance = (currentBalance - amountBdt).clamp(0.0, double.infinity);
-        if (currentWalletPhone != null) {
-          await sb
-              .from('wallets')
-              .update({'balance_bdt': newBalance})
-              .eq('phone', currentWalletPhone);
-        } else if (walletRowId != null) {
-          await sb
-              .from('wallets')
-              .update({'balance_bdt': newBalance})
-              .eq('id', walletRowId);
-        }
+        // Deduct the card that actually paid, not whichever row came back first.
+        await _adjustWalletBalance(sb, wallet, -amountBdt);
       } catch (e) {
-        debugPrint('[SupabasePaymentRepository] completePaymentRecord error: $e');
+        debugPrint(
+          '[SupabasePaymentRepository] completePaymentRecord error: $e',
+        );
       }
     }
+  }
+
+  @override
+  Future<Map<String, dynamic>> executeCardTransfer({
+    required String fromCardId,
+    required String toCardId,
+    required double amountBdt,
+    required double vatOnCommission,
+    required double usdAmount,
+  }) async {
+    http.Response response;
+    try {
+      response = await _httpClient
+          .post(
+            Uri.parse('$_backendBaseUrl/api/checkout/card-transfer'),
+            headers: _authHeaders,
+            body: jsonEncode({
+              'fromCardId': fromCardId,
+              'toCardId': toCardId,
+              'amountBdt': amountBdt,
+              'vatOnCommission': vatOnCommission,
+              'usdAmount': usdAmount,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (netErr) {
+      debugPrint(
+        '[SupabasePaymentRepository] card transfer network error: $netErr',
+      );
+      throw Exception(
+        'Payment Gateway Error: Unable to connect to payment server. Please ensure backend service is running.',
+      );
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      String errorMessage = 'Payment Gateway Error (${response.statusCode})';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] != null) {
+          errorMessage = 'Payment Gateway Error: ${decoded['error']}';
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final checkoutUrl = data['checkoutUrl']?.toString() ?? '';
+    if (checkoutUrl.isEmpty ||
+        (!checkoutUrl.startsWith('http://') &&
+            !checkoutUrl.startsWith('https://'))) {
+      throw Exception(
+        'Payment Gateway Error: Malformed or missing Checkout URL returned by gateway.',
+      );
+    }
+    return data;
   }
 
   @override
@@ -446,49 +580,57 @@ class SupabasePaymentRepository implements PaymentRepository {
     final sb = _supabase;
     if (sb != null) {
       try {
-        final walletRecords = await sb
-            .from('wallets')
-            .select()
-            .timeout(const Duration(seconds: 4));
+        final from = await _walletRowFor(sb, fromCardId);
+        final to = await _walletRowFor(sb, toCardId);
 
-        if (walletRecords.isNotEmpty) {
-          final firstWallet = walletRecords.first;
-          final currentBalance = (firstWallet['balance_bdt'] as num?)?.toDouble() ??
-              double.tryParse(firstWallet['balance_bdt']?.toString() ?? '') ??
-              98420.12;
+        // Both sides move. Previously only the WPS row was touched, so a
+        // transfer between the other two cards changed the wrong balance.
+        await _adjustWalletBalance(sb, from, -amount);
+        await _adjustWalletBalance(sb, to, amount);
 
-          if (fromCardId == 'card_wps') {
-            final updated = (currentBalance - amount).clamp(0.0, double.infinity);
-            await sb
-                .from('wallets')
-                .update({'balance_bdt': updated})
-                .eq('id', firstWallet['id'])
-                .timeout(const Duration(seconds: 4));
-          } else if (toCardId == 'card_wps') {
-            final updated = currentBalance + amount;
-            await sb
-                .from('wallets')
-                .update({'balance_bdt': updated})
-                .eq('id', firstWallet['id'])
-                .timeout(const Duration(seconds: 4));
-          }
+        final userId = sb.auth.currentUser?.id;
+        final createdAtIso = DateTime.now().toUtc().toIso8601String();
+        final stamp = DateTime.now().millisecondsSinceEpoch;
+        final group = '${fromCardId}_${toCardId}_$stamp';
+        final fromTitle = from?['title']?.toString() ?? fromCardId;
+        final toTitle = to?['title']?.toString() ?? toCardId;
+        final shared = <String, dynamic>{
+          'sender_id': userId,
+          'sender_phone': from?['phone']?.toString() ?? '+8801700000000',
+          'receiver_phone': to?['phone']?.toString() ?? '+8801700000000',
+          'amount_bdt': amount,
+          'converted_amount': amount,
+          'currency': 'BDT',
+          'status': 'completed',
+          'icon_category': 'transfer',
+          'transfer_group': group,
+          'created_at': createdAtIso,
+        };
 
-          await sb.from('transactions').insert({
-            'sender_phone': '+8801700000000',
-            'receiver_phone': '+8801700000000',
-            'title': 'Inter-Card Swap',
-            'subtitle': '$fromCardId → $toCardId',
-            'amount_bdt': amount,
-            'converted_amount': amount,
-            'currency': 'BDT',
+        await sb.from('transactions').insert([
+          {
+            ...shared,
+            'direction': 'debit',
             'type': 'transfer',
-            'status': 'completed',
+            'title': toTitle,
+            'subtitle': 'Transfer to $toTitle',
+            'amount': amount,
             'card_id': fromCardId,
-            'icon_category': 'transfer',
-          }).timeout(const Duration(seconds: 4));
-        }
+          },
+          {
+            ...shared,
+            'direction': 'credit',
+            'type': 'receive',
+            'title': fromTitle,
+            'subtitle': 'Transfer from $fromTitle',
+            'amount': amount,
+            'card_id': toCardId,
+          },
+        ]);
       } catch (e) {
-        debugPrint('[SupabasePaymentRepository] executeInterCardTransfer error fallback: $e');
+        debugPrint(
+          '[SupabasePaymentRepository] executeInterCardTransfer error fallback: $e',
+        );
       }
     }
 
@@ -497,6 +639,52 @@ class SupabasePaymentRepository implements PaymentRepository {
       toCardId: toCardId,
       amount: amount,
     );
+  }
+
+  /// The wallet row backing [cardId]. Falls back to the single legacy row for
+  /// databases created before wallets had one row per card.
+  Future<Map<String, dynamic>?> _walletRowFor(
+    SupabaseClient sb,
+    String cardId,
+  ) async {
+    try {
+      final rows = await sb
+          .from('wallets')
+          .select()
+          .timeout(const Duration(seconds: 4));
+      if (rows.isEmpty) return null;
+      for (final row in rows) {
+        if (row['card_id']?.toString() == cardId) return row;
+      }
+      final hasCardIds = rows.any((r) => r['card_id'] != null);
+      return hasCardIds ? null : rows.first;
+    } catch (e) {
+      debugPrint('[SupabasePaymentRepository] wallet lookup failed: $e');
+      return null;
+    }
+  }
+
+  /// Adds [delta] to that wallet row's balance, never below zero.
+  Future<void> _adjustWalletBalance(
+    SupabaseClient sb,
+    Map<String, dynamic>? wallet,
+    double delta,
+  ) async {
+    if (wallet == null) return;
+    final raw = wallet['balance_bdt'];
+    final current = raw is num
+        ? raw.toDouble()
+        : (double.tryParse(raw?.toString() ?? '') ?? 0.0);
+    final updated = (current + delta).clamp(0.0, double.infinity);
+    try {
+      await sb
+          .from('wallets')
+          .update({'balance_bdt': updated})
+          .eq('id', wallet['id'])
+          .timeout(const Duration(seconds: 4));
+    } catch (e) {
+      debugPrint('[SupabasePaymentRepository] balance update failed: $e');
+    }
   }
 
   static Map<String, String> _resolveCountryInfo(String code) {
@@ -570,7 +758,9 @@ class SupabasePaymentRepository implements PaymentRepository {
           }
         }
       } catch (e) {
-        debugPrint('[SupabasePaymentRepository] getWalletHolderName auth notice: $e');
+        debugPrint(
+          '[SupabasePaymentRepository] getWalletHolderName auth notice: $e',
+        );
       }
 
       // 2. Fetch live full_name from Supabase wallets record
@@ -582,14 +772,14 @@ class SupabasePaymentRepository implements PaymentRepository {
 
         if (records.isNotEmpty) {
           final dbName = records.first['full_name']?.toString().trim();
-          if (dbName != null &&
-              dbName.isNotEmpty &&
-              dbName != 'Talha Tanzim') {
+          if (dbName != null && dbName.isNotEmpty && dbName != 'Talha Tanzim') {
             return dbName;
           }
         }
       } catch (e) {
-        debugPrint('[SupabasePaymentRepository] getWalletHolderName db notice: $e');
+        debugPrint(
+          '[SupabasePaymentRepository] getWalletHolderName db notice: $e',
+        );
       }
     }
 
@@ -607,8 +797,10 @@ class SupabasePaymentRepository implements PaymentRepository {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final ratesMap = data['rates'] as Map<String, dynamic>?;
         if (ratesMap != null) {
-          return ratesMap.map((key, value) =>
-              MapEntry(key.toUpperCase(), (value as num).toDouble()));
+          return ratesMap.map(
+            (key, value) =>
+                MapEntry(key.toUpperCase(), (value as num).toDouble()),
+          );
         }
       }
     } catch (e) {

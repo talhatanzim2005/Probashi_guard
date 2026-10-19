@@ -5,18 +5,23 @@ import 'package:probashi_guard/frontend/documents/saved_documents_portal_view.da
 import 'package:probashi_guard/frontend/menu/app_menu_drawer.dart';
 import 'package:probashi_guard/main.dart';
 import 'package:probashi_guard/widget/bottom_navigation_bar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// The scanner is reachable from the shell's bottom bar and from the home
 /// screen's vault shortcut. These broke once when a redesign replaced the tab,
 /// so they are asserted here rather than in the broader home-screen test.
 void main() {
+  // The vault reads its offline copy from SharedPreferences. With no mock the
+  // read never completes in a test, so the vault's spinner never stops.
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('the Scan tab opens the document scanner', (tester) async {
     tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const ProbashiGuardApp());
+    await tester.pumpWidget(const ProbashiGuardApp(home: MainNavigationShell()));
     await tester.pumpAndSettle();
 
     expect(find.byType(CustomBottomNavigationBar), findsOneWidget);
@@ -31,8 +36,15 @@ void main() {
 
     expect(find.byType(DocumentScanView), findsOneWidget);
     expect(find.text('Document Scanner'), findsOneWidget);
-    // Both document paths are offered: the language choice and the vault.
-    expect(find.descendant(of: find.byType(DocumentScanView), matching: find.text('বাংলা')), findsOneWidget);
+    // The scanner has no language picker of its own any more: results follow
+    // the app language set in Menu or Profile. The vault is still one tap away.
+    expect(
+      find.descendant(
+        of: find.byType(DocumentScanView),
+        matching: find.byWidgetPredicate((w) => w is SegmentedButton),
+      ),
+      findsNothing,
+    );
     expect(find.text('Vault'), findsOneWidget);
   });
 
@@ -42,7 +54,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const ProbashiGuardApp());
+    await tester.pumpWidget(const ProbashiGuardApp(home: MainNavigationShell()));
     await tester.pumpAndSettle();
 
     final shortcut = find.text('Fraud Checker');
@@ -62,7 +74,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const ProbashiGuardApp());
+    await tester.pumpWidget(const ProbashiGuardApp(home: MainNavigationShell()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.menu_rounded));
@@ -84,7 +96,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const ProbashiGuardApp());
+    await tester.pumpWidget(const ProbashiGuardApp(home: MainNavigationShell()));
     await tester.pumpAndSettle();
 
     final shortcut = find.text('Saved Documents');

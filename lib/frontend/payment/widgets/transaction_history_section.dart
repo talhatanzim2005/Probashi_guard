@@ -55,7 +55,10 @@ class TransactionHistorySection extends StatelessWidget {
               GestureDetector(
                 onTap: onSeeAllTap,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 2,
+                  ),
                   child: Text(
                     s.seeAll,
                     style: const TextStyle(
@@ -161,17 +164,42 @@ class _TransactionTile extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              '${isIncome ? '+' : '-'}${_getCurrencySymbol(tx.currency)}${tx.amount.toStringAsFixed(tx.amount.truncateToDouble() == tx.amount ? 0 : 2)}',
-              style: TextStyle(
-                color: tx.isPending
-                    ? AppColors.inkMuted
-                    : (isIncome ? AppColors.emeraldGreen : AppColors.ink),
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.2,
+            // A cross-border transfer has two legs — what the sender's bank was
+            // debited and what the recipient's bank was credited — so both are
+            // shown rather than only the figure the row is denominated in.
+            if (tx.hasBothLegs) ...[
+              Text(
+                '-${_getCurrencySymbol(tx.debitedCurrency ?? tx.currency)}${_formatAmount(tx.debitedAmount!)}',
+                style: TextStyle(
+                  color: tx.isPending ? AppColors.inkMuted : AppColors.ink,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
               ),
-            ),
+              Text(
+                '+${_getCurrencySymbol(tx.creditedCurrency ?? 'BDT')}${_formatAmount(tx.creditedAmount!)}',
+                style: TextStyle(
+                  color: tx.isPending
+                      ? AppColors.inkMuted
+                      : AppColors.emeraldGreen,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ] else
+              Text(
+                '${isIncome ? '+' : '-'}${_getCurrencySymbol(tx.currency)}${_formatAmount(tx.amount)}',
+                style: TextStyle(
+                  color: tx.isPending
+                      ? AppColors.inkMuted
+                      : (isIncome ? AppColors.emeraldGreen : AppColors.ink),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
             const SizedBox(height: 2),
             Text(
               _formatDate(AppStrings.of(context), tx.timestamp),
@@ -214,8 +242,12 @@ class _TransactionTile extends StatelessWidget {
         bgColor = AppColors.crimsonRed.withValues(alpha: 0.12);
         break;
       default:
-        iconData = tx.isIncoming ? Icons.arrow_downward_rounded : Icons.person_rounded;
-        iconColor = tx.isIncoming ? AppColors.emeraldGreen : AppColors.royalBlue;
+        iconData = tx.isIncoming
+            ? Icons.arrow_downward_rounded
+            : Icons.person_rounded;
+        iconColor = tx.isIncoming
+            ? AppColors.emeraldGreen
+            : AppColors.royalBlue;
         bgColor = iconColor.withValues(alpha: 0.12);
     }
 
@@ -235,20 +267,14 @@ class _TransactionTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: bgColor,
         shape: BoxShape.circle,
-        border: Border.all(
-          color: iconColor.withValues(alpha: 0.25),
-          width: 1,
-        ),
+        border: Border.all(color: iconColor.withValues(alpha: 0.25), width: 1),
       ),
-      child: Center(
-        child: Icon(
-          iconData,
-          color: iconColor,
-          size: 22,
-        ),
-      ),
+      child: Center(child: Icon(iconData, color: iconColor, size: 22)),
     );
   }
+
+  String _formatAmount(double amount) =>
+      amount.toStringAsFixed(amount.truncateToDouble() == amount ? 0 : 2);
 
   String _getCurrencySymbol(String currencyCode) {
     switch (currencyCode.toUpperCase()) {

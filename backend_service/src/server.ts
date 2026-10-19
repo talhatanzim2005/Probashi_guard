@@ -6,6 +6,7 @@ import webhookRoutes from './routes/webhooks.js';
 import checkoutRoutes from './routes/checkout.js';
 import paymentRoutes from './routes/payment.js';
 import documentRoutes from './routes/documents.js';
+import authRoutes from './routes/auth.js';
 
 dotenv.config();
 
@@ -18,6 +19,12 @@ app.use(cors());
 // Mounted before the global parsers: it parses its own (image) bodies and turns
 // an oversized photo into a clear 413 instead of a generic error.
 app.use('/api/documents', documentRoutes);
+
+// Stripe signs the exact bytes it sent, so the webhook has to see the raw
+// buffer and never a re-serialised object. Mounting express.raw() here - ahead
+// of the JSON parser - leaves req.body as a Buffer for this one path;
+// express.raw marks the body as read, so express.json below skips it.
+app.use('/api/webhooks/stripe', express.raw({ type: 'application/json', limit: '2mb' }));
 
 // Middleware to capture rawBody for webhook signature verification while parsing JSON.
 // Standard 2mb limit for general JSON routes (documents handles its own larger limit).
@@ -107,6 +114,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/products', checkoutRoutes); // Also mount at /api/products for /api/products/create
 app.use('/api/payment', paymentRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api', checkoutRoutes); // Mounts /api/rates directly
 
 // Global Error Handler

@@ -26,11 +26,7 @@ class _PaymentViewState extends State<PaymentView> {
   final PaymentController _controller = PaymentController.instance;
 
   void _openSendFlow([BeneficiaryModel? recipient]) {
-    SendFlowView.push(
-      context,
-      controller: _controller,
-      recipient: recipient,
-    );
+    SendFlowView.push(context, controller: _controller, recipient: recipient);
   }
 
   void _openReceiveModal() {
@@ -98,7 +94,10 @@ class _PaymentViewState extends State<PaymentView> {
 
               // Country / Nationality Selector
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -110,7 +109,10 @@ class _PaymentViewState extends State<PaymentView> {
                   child: DropdownButton<CountryModel>(
                     value: selectedCountry,
                     isExpanded: true,
-                    icon: const Icon(Icons.arrow_drop_down, color: AppColors.royalBlue),
+                    icon: const Icon(
+                      Icons.arrow_drop_down,
+                      color: AppColors.royalBlue,
+                    ),
                     items: CountryModel.supportedCountries.map((c) {
                       return DropdownMenuItem<CountryModel>(
                         value: c,
@@ -151,7 +153,9 @@ class _PaymentViewState extends State<PaymentView> {
                   labelText: AppStrings.of(context).recipientFullName,
                   filled: true,
                   fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -159,11 +163,14 @@ class _PaymentViewState extends State<PaymentView> {
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
                 decoration: InputDecoration(
-                  labelText: AppStrings.of(context)
-                      .mobileNumberHint(selectedCountry.dialCode),
+                  labelText: AppStrings.of(
+                    context,
+                  ).mobileNumberHint(selectedCountry.dialCode),
                   filled: true,
                   fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -182,11 +189,15 @@ class _PaymentViewState extends State<PaymentView> {
                         selectedColor: AppColors.royalBlue,
                         backgroundColor: Colors.white,
                         labelStyle: TextStyle(
-                          color: isSelected ? AppColors.cloudDancer : AppColors.royalBlue,
+                          color: isSelected
+                              ? AppColors.cloudDancer
+                              : AppColors.royalBlue,
                           fontWeight: FontWeight.w700,
                         ),
                         onSelected: (val) {
-                          if (val) setSheetState(() => selectedProvider = provider);
+                          if (val) {
+                            setSheetState(() => selectedProvider = provider);
+                          }
                         },
                       ),
                     );
@@ -226,10 +237,14 @@ class _PaymentViewState extends State<PaymentView> {
                   backgroundColor: AppColors.royalBlue,
                   foregroundColor: AppColors.cloudDancer,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
-                child: Text(AppStrings.of(context).saveBeneficiary,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                child: Text(
+                  AppStrings.of(context).saveBeneficiary,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
@@ -276,7 +291,10 @@ class _PaymentViewState extends State<PaymentView> {
               Expanded(
                 child: ListView.separated(
                   controller: scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
                   itemCount: _controller.transactions.length,
                   separatorBuilder: (context, index) => Divider(
                     color: AppColors.royalBlue.withValues(alpha: 0.08),
@@ -290,8 +308,12 @@ class _PaymentViewState extends State<PaymentView> {
                             ? AppColors.emeraldGreen.withValues(alpha: 0.12)
                             : AppColors.royalBlue.withValues(alpha: 0.1),
                         child: Icon(
-                          tx.isIncoming ? Icons.arrow_downward : Icons.arrow_upward,
-                          color: tx.isIncoming ? AppColors.emeraldGreen : AppColors.royalBlue,
+                          tx.isIncoming
+                              ? Icons.arrow_downward
+                              : Icons.arrow_upward,
+                          color: tx.isIncoming
+                              ? AppColors.emeraldGreen
+                              : AppColors.royalBlue,
                           size: 18,
                         ),
                       ),
@@ -310,18 +332,47 @@ class _PaymentViewState extends State<PaymentView> {
                           fontSize: 12,
                         ),
                       ),
-                      trailing: Text(
-                        '${tx.isIncoming ? '+' : '-'}${tx.currency} ${tx.amount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: tx.isPending
-                              ? AppColors.inkMuted
-                              : (tx.isIncoming
-                                  ? AppColors.emeraldGreen
-                                  : AppColors.ink),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
+                      // Both legs of a cross-border transfer: what the sender's
+                      // bank was debited and what the recipient's was credited.
+                      trailing: tx.hasBothLegs
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '-${tx.debitedCurrency ?? tx.currency} ${tx.debitedAmount!.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    color: tx.isPending
+                                        ? AppColors.inkMuted
+                                        : AppColors.ink,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                                Text(
+                                  '+${tx.creditedCurrency ?? 'BDT'} ${tx.creditedAmount!.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    color: tx.isPending
+                                        ? AppColors.inkMuted
+                                        : AppColors.emeraldGreen,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              '${tx.isIncoming ? '+' : '-'}${tx.currency} ${tx.amount.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                color: tx.isPending
+                                    ? AppColors.inkMuted
+                                    : (tx.isIncoming
+                                          ? AppColors.emeraldGreen
+                                          : AppColors.ink),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
                     );
                   },
                 ),
@@ -397,7 +448,9 @@ class _PaymentViewState extends State<PaymentView> {
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerRight,
-                            child: CurrencySelectorPill(controller: _controller),
+                            child: CurrencySelectorPill(
+                              controller: _controller,
+                            ),
                           ),
                         ),
                       ),
@@ -405,7 +458,7 @@ class _PaymentViewState extends State<PaymentView> {
                   ),
                   const SizedBox(height: 12),
 
-                  // 3D Layered Card Deck (WPS, Multi-Currency, bKash)
+                  // 3D Layered Card Deck (WPS, Multi-Currency, Global Visa)
                   PaymentCardDeck(controller: _controller),
                   const SizedBox(height: 22),
 

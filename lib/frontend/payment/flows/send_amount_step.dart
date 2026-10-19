@@ -7,6 +7,7 @@ import '../models/beneficiary_model.dart';
 import '../models/country_model.dart';
 import '../models/currency_model.dart';
 import '../models/wallet_card_model.dart';
+import '../widgets/amount_numpad.dart';
 
 class SendAmountStep extends StatefulWidget {
   final BeneficiaryModel recipient;
@@ -20,7 +21,10 @@ class SendAmountStep extends StatefulWidget {
     required double exchangeRate,
     required double amountBdt,
     required double incentiveBdt,
-  }) onProceed;
+    required double vatOnCommission,
+    required double usdAmount,
+  })
+  onProceed;
 
   const SendAmountStep({
     super.key,
@@ -34,14 +38,18 @@ class SendAmountStep extends StatefulWidget {
 }
 
 class _SendAmountStepState extends State<SendAmountStep> {
-  final TextEditingController _amountController = TextEditingController(text: '100');
+  final TextEditingController _amountController = TextEditingController(
+    text: '100',
+  );
   late WalletCardModel _selectedCard;
-  CurrencyModel _inputCurrency = CurrencyModel.supportedCurrencies[1]; // SAR default
+  CurrencyModel _inputCurrency =
+      CurrencyModel.supportedCurrencies[1]; // SAR default
 
   @override
   void initState() {
     super.initState();
-    _selectedCard = widget.controller.activeCard ??
+    _selectedCard =
+        widget.controller.activeCard ??
         (widget.controller.cards.isNotEmpty
             ? widget.controller.cards.first
             : const WalletCardModel(
@@ -65,10 +73,12 @@ class _SendAmountStepState extends State<SendAmountStep> {
     super.dispose();
   }
 
-  double get _enteredAmount => double.tryParse(_amountController.text.trim()) ?? 0.0;
+  double get _enteredAmount =>
+      double.tryParse(_amountController.text.trim()) ?? 0.0;
 
   /// Recipient's destination country information
-  CountryModel get _destCountry => CountryModel.findByCode(widget.recipient.countryCode);
+  CountryModel get _destCountry =>
+      CountryModel.findByCode(widget.recipient.countryCode);
 
   /// Convert source input amount to baseline BDT
   double get _amountInBdt {
@@ -77,7 +87,8 @@ class _SendAmountStepState extends State<SendAmountStep> {
   }
 
   /// Official 2.5% Bangladesh government cash incentive for remitters to Bangladesh
-  bool get _isRemittanceToBangladesh => widget.recipient.countryCode.toUpperCase() == 'BD';
+  bool get _isRemittanceToBangladesh =>
+      widget.recipient.countryCode.toUpperCase() == 'BD';
 
   double get _govtIncentive {
     if (!_isRemittanceToBangladesh) return 0.0;
@@ -103,6 +114,43 @@ class _SendAmountStepState extends State<SendAmountStep> {
     return _inputCurrency.rateToBdt / destRate;
   }
 
+  /// VAT on the transfer commission, in the currency the sender typed in.
+  double get _vatOnCommission => CurrencyModel.vatOnCommission(_enteredAmount);
+
+  /// What leaves the sender's card: the transfer plus the VAT on commission.
+  double get _totalDebit => _enteredAmount + _vatOnCommission;
+
+  /// Stripe is always charged in USD, whatever the sender typed in.
+  double get _usdSettlement => _inputCurrency.toUsd(_totalDebit);
+
+  Widget _buildBreakdownRow(
+    String label,
+    String value, {
+    bool emphasised = false,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.inkMuted,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: emphasised ? AppColors.ink : AppColors.inkMuted,
+            fontSize: emphasised ? 13.5 : 12.5,
+            fontWeight: emphasised ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _addAmount(double addVal) {
     HapticFeedback.selectionClick();
     final current = _enteredAmount;
@@ -122,7 +170,7 @@ class _SendAmountStepState extends State<SendAmountStep> {
       return;
     }
 
-    if (_amountInBdt > _selectedCard.balance) {
+    if (_inputCurrency.convertToBdt(_totalDebit) > _selectedCard.balance) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(AppStrings.of(context).amountExceedsBalance),
@@ -141,6 +189,8 @@ class _SendAmountStepState extends State<SendAmountStep> {
       exchangeRate: _exchangeRate,
       amountBdt: _amountInBdt,
       incentiveBdt: _govtIncentive,
+      vatOnCommission: _vatOnCommission,
+      usdAmount: _usdSettlement,
     );
   }
 
@@ -171,7 +221,9 @@ class _SendAmountStepState extends State<SendAmountStep> {
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: AppColors.royalBlue.withValues(alpha: 0.12),
+                      backgroundColor: AppColors.royalBlue.withValues(
+                        alpha: 0.12,
+                      ),
                       child: Text(
                         widget.recipient.initials,
                         style: const TextStyle(
@@ -228,7 +280,10 @@ class _SendAmountStepState extends State<SendAmountStep> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.emeraldGreen.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
@@ -274,7 +329,10 @@ class _SendAmountStepState extends State<SendAmountStep> {
                   child: DropdownButton<WalletCardModel>(
                     value: _selectedCard,
                     isExpanded: true,
-                    icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.royalBlue),
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down,
+                      color: AppColors.royalBlue,
+                    ),
                     items: cards.map((c) {
                       return DropdownMenuItem<WalletCardModel>(
                         value: c,
@@ -291,7 +349,8 @@ class _SendAmountStepState extends State<SendAmountStep> {
                             ),
                             Text(
                               s.availableShort(
-                                  '৳${c.balance.toStringAsFixed(0)}'),
+                                '৳${c.balance.toStringAsFixed(0)}',
+                              ),
                               style: const TextStyle(
                                 color: AppColors.inkMuted,
                                 fontSize: 12,
@@ -360,8 +419,11 @@ class _SendAmountStepState extends State<SendAmountStep> {
                     IntrinsicWidth(
                       child: TextField(
                         controller: _amountController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => setState(() {}),
+                        // The on-screen numpad below is the only way in, so the
+                        // system keyboard never opens and nothing but digits
+                        // can ever be entered — on every platform.
+                        readOnly: true,
+                        showCursor: true,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: AppColors.ink,
@@ -441,6 +503,28 @@ class _SendAmountStepState extends State<SendAmountStep> {
                     ),
                   ],
                 ),
+                Divider(
+                  color: AppColors.royalBlue.withValues(alpha: 0.1),
+                  height: 22,
+                ),
+
+                // Fee breakdown and the USD the gateway actually charges.
+                _buildBreakdownRow(
+                  '${s.vatOnCommission} (0.01%)',
+                  '${_inputCurrency.symbol}${_vatOnCommission.toStringAsFixed(2)}',
+                ),
+                const SizedBox(height: 6),
+                _buildBreakdownRow(
+                  s.totalDebited,
+                  '${_inputCurrency.symbol}${_totalDebit.toStringAsFixed(2)}',
+                  emphasised: true,
+                ),
+                const SizedBox(height: 6),
+                _buildBreakdownRow(
+                  s.chargedInUsd,
+                  '\$${_usdSettlement.toStringAsFixed(2)}',
+                  emphasised: true,
+                ),
               ],
             ),
           ),
@@ -460,7 +544,9 @@ class _SendAmountStepState extends State<SendAmountStep> {
             child: Row(
               children: [
                 Icon(
-                  _isRemittanceToBangladesh ? Icons.stars_rounded : Icons.sync_alt_rounded,
+                  _isRemittanceToBangladesh
+                      ? Icons.stars_rounded
+                      : Icons.sync_alt_rounded,
                   color: AppColors.emeraldGreen,
                   size: 18,
                 ),
@@ -481,6 +567,13 @@ class _SendAmountStepState extends State<SendAmountStep> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // The keypad the amount is typed on.
+          AmountNumpad(
+            controller: _amountController,
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(height: 14),
 
           // Quick Amount Preset Chips
           Wrap(

@@ -1,4 +1,18 @@
 .trigger
 node_modules
 dist
+
+# Secrets and credentials - never commit. The root .gitignore repeats these,
+# but they are restated here so this folder stays safe on its own.
 .env
+.env.*
+*.env
+!.env.example
+!*.env.example
+*.pem
+*.p12
+*.p8
+*.key
+*.pfx
+service-account*.json
+service_account*.json

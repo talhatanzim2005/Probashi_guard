@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/beneficiary_model.dart';
 import '../models/transaction_model.dart';
 import '../models/wallet_card_model.dart';
@@ -13,12 +14,28 @@ class StripePaymentRepository implements PaymentRepository {
   final http.Client _client;
   final MockPaymentRepository _fallbackRepository;
 
-  StripePaymentRepository({
-    String? baseUrl,
-    http.Client? client,
-  })  : baseUrl = baseUrl ?? _defaultBaseUrl,
-        _client = client ?? http.Client(),
-        _fallbackRepository = MockPaymentRepository();
+  StripePaymentRepository({String? baseUrl, http.Client? client})
+    : baseUrl = baseUrl ?? _defaultBaseUrl,
+      _client = client ?? http.Client(),
+      _fallbackRepository = MockPaymentRepository();
+
+  /// JSON headers plus the signed-in person's Supabase access token.
+  ///
+  /// The backend resolves the token into the account whose wallet the Stripe
+  /// webhook will credit. Without it the session carries no payer, the webhook
+  /// refuses to guess, and the money is never booked — so a paid session by a
+  /// signed-out client is a dead end by design, not a silent mis-credit.
+  Map<String, String> get _authHeaders {
+    final headers = {'Content-Type': 'application/json'};
+    try {
+      final token = Supabase.instance.client.auth.currentSession?.accessToken;
+      if (token != null) headers['Authorization'] = 'Bearer $token';
+    } catch (e) {
+      // Supabase never initialised (offline first launch, widget tests).
+      debugPrint('[StripePaymentRepository] no access token to send: $e');
+    }
+    return headers;
+  }
 
   static String get _defaultBaseUrl {
     if (kIsWeb) {
@@ -67,7 +84,9 @@ class StripePaymentRepository implements PaymentRepository {
             .toList();
       }
     } catch (e) {
-      debugPrint('[StripePaymentRepository] getBeneficiaries offline fallback: $e');
+      debugPrint(
+        '[StripePaymentRepository] getBeneficiaries offline fallback: $e',
+      );
     }
     return _fallbackRepository.getBeneficiaries();
   }
@@ -75,10 +94,12 @@ class StripePaymentRepository implements PaymentRepository {
   @override
   Future<List<TransactionModel>> getTransactions({String? cardId}) async {
     try {
-      final uri = Uri.parse('$baseUrl/api/payment/transactions').replace(
-        queryParameters: cardId != null ? {'cardId': cardId} : null,
-      );
-      final response = await _client.get(uri).timeout(const Duration(seconds: 4));
+      final uri = Uri.parse(
+        '$baseUrl/api/payment/transactions',
+      ).replace(queryParameters: cardId != null ? {'cardId': cardId} : null);
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 4));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -88,7 +109,9 @@ class StripePaymentRepository implements PaymentRepository {
             .toList();
       }
     } catch (e) {
-      debugPrint('[StripePaymentRepository] getTransactions offline fallback: $e');
+      debugPrint(
+        '[StripePaymentRepository] getTransactions offline fallback: $e',
+      );
     }
     return _fallbackRepository.getTransactions(cardId: cardId);
   }
@@ -102,23 +125,31 @@ class StripePaymentRepository implements PaymentRepository {
     required double exchangeRate,
     required double amountBdt,
     required double incentiveBdt,
+    required double vatOnCommission,
+    required double usdAmount,
     String? connectedAccountId,
   }) async {
     final String recipientName = beneficiary is BeneficiaryModel
         ? beneficiary.name
-        : (beneficiary is Map ? beneficiary['name']?.toString() ?? '' : beneficiary.toString());
+        : (beneficiary is Map
+              ? beneficiary['name']?.toString() ?? ''
+              : beneficiary.toString());
     final String recipientPhone = beneficiary is BeneficiaryModel
         ? beneficiary.phoneOrAccount
         : (beneficiary is Map
-            ? (beneficiary['phone'] ?? beneficiary['phone_number'] ?? beneficiary['phoneOrAccount'] ?? '+8801700000000').toString()
-            : '+8801700000000');
+              ? (beneficiary['phone'] ??
+                        beneficiary['phone_number'] ??
+                        beneficiary['phoneOrAccount'] ??
+                        '+8801700000000')
+                    .toString()
+              : '+8801700000000');
 
     http.Response response;
     try {
       response = await _client
           .post(
             Uri.parse('$baseUrl/api/checkout/send-money'),
-            headers: {'Content-Type': 'application/json'},
+            headers: _authHeaders,
             body: jsonEncode({
               'cardId': cardId,
               'sourceCardId': cardId,
@@ -130,15 +161,22 @@ class StripePaymentRepository implements PaymentRepository {
               'exchangeRate': exchangeRate,
               'amountBdt': amountBdt,
               'incentiveBdt': incentiveBdt,
+              'vatOnCommission': vatOnCommission,
+              'usdAmount': usdAmount,
               'destinationAmount': amountBdt + incentiveBdt,
               'destinationCurrency': 'BDT',
-              'connectedAccountId': connectedAccountId ?? 'acct_1URCKREQ1XrhmDDe',
+              'connectedAccountId':
+                  connectedAccountId ?? 'acct_1URCKREQ1XrhmDDe',
             }),
           )
           .timeout(const Duration(seconds: 10));
     } catch (netErr) {
-      debugPrint('[StripePaymentRepository] Network error connecting to backend: $netErr');
-      throw Exception('Payment Gateway Error: Unable to connect to payment server. Please ensure backend service is running.');
+      debugPrint(
+        '[StripePaymentRepository] Network error connecting to backend: $netErr',
+      );
+      throw Exception(
+        'Payment Gateway Error: Unable to connect to payment server. Please ensure backend service is running.',
+      );
     }
 
     if (response.statusCode != 200 && response.statusCode != 201) {
@@ -153,17 +191,22 @@ class StripePaymentRepository implements PaymentRepository {
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final String? checkoutUrl = data['checkoutUrl']?.toString() ??
+    final String? checkoutUrl =
+        data['checkoutUrl']?.toString() ??
         data['transaction']?['checkout_url']?.toString();
 
     if (checkoutUrl == null ||
         checkoutUrl.trim().isEmpty ||
-        (!checkoutUrl.startsWith('http://') && !checkoutUrl.startsWith('https://'))) {
-      throw Exception('Payment Gateway Error: Malformed or missing Checkout URL returned by gateway.');
+        (!checkoutUrl.startsWith('http://') &&
+            !checkoutUrl.startsWith('https://'))) {
+      throw Exception(
+        'Payment Gateway Error: Malformed or missing Checkout URL returned by gateway.',
+      );
     }
 
     final txMap = data['transaction'] as Map<String, dynamic>? ?? {};
-    final sessionId = data['sessionId']?.toString() ??
+    final sessionId =
+        data['sessionId']?.toString() ??
         txMap['stripe_payment_id']?.toString() ??
         txMap['id']?.toString() ??
         'cs_${DateTime.now().millisecondsSinceEpoch}';
@@ -210,6 +253,61 @@ class StripePaymentRepository implements PaymentRepository {
   }
 
   @override
+  Future<Map<String, dynamic>> executeCardTransfer({
+    required String fromCardId,
+    required String toCardId,
+    required double amountBdt,
+    required double vatOnCommission,
+    required double usdAmount,
+  }) async {
+    http.Response response;
+    try {
+      response = await _client
+          .post(
+            Uri.parse('$baseUrl/api/checkout/card-transfer'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'fromCardId': fromCardId,
+              'toCardId': toCardId,
+              'amountBdt': amountBdt,
+              'vatOnCommission': vatOnCommission,
+              'usdAmount': usdAmount,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (netErr) {
+      debugPrint(
+        '[StripePaymentRepository] card transfer network error: $netErr',
+      );
+      throw Exception(
+        'Payment Gateway Error: Unable to connect to payment server. Please ensure backend service is running.',
+      );
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      String errorMessage = 'Payment Gateway Error (${response.statusCode})';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded['error'] != null) {
+          errorMessage = 'Payment Gateway Error: ${decoded['error']}';
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final checkoutUrl = data['checkoutUrl']?.toString() ?? '';
+    if (checkoutUrl.isEmpty ||
+        (!checkoutUrl.startsWith('http://') &&
+            !checkoutUrl.startsWith('https://'))) {
+      throw Exception(
+        'Payment Gateway Error: Malformed or missing Checkout URL returned by gateway.',
+      );
+    }
+    return data;
+  }
+
+  @override
   Future<bool> executeInterCardTransfer({
     required String fromCardId,
     required String toCardId,
@@ -233,7 +331,9 @@ class StripePaymentRepository implements PaymentRepository {
         return data['success'] == true;
       }
     } catch (e) {
-      debugPrint('[StripePaymentRepository] executeInterCardTransfer fallback: $e');
+      debugPrint(
+        '[StripePaymentRepository] executeInterCardTransfer fallback: $e',
+      );
     }
 
     return _fallbackRepository.executeInterCardTransfer(
@@ -258,8 +358,10 @@ class StripePaymentRepository implements PaymentRepository {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final ratesMap = data['rates'] as Map<String, dynamic>?;
         if (ratesMap != null) {
-          return ratesMap.map((key, value) =>
-              MapEntry(key.toUpperCase(), (value as num).toDouble()));
+          return ratesMap.map(
+            (key, value) =>
+                MapEntry(key.toUpperCase(), (value as num).toDouble()),
+          );
         }
       }
     } catch (e) {

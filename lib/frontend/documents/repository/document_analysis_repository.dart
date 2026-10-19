@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/document_analysis.dart';
 
@@ -72,20 +73,11 @@ class DocumentAnalysisRepository {
     }
   }
 
-  /// The vault is scoped to the Supabase user, so make sure there is one.
-  /// main() signs in anonymously at launch; this covers a launch that was offline.
-  Future<Session?> _ensureSession() async {
-    final sb = _supabase;
-    if (sb == null) return null;
-    if (sb.auth.currentSession != null) return sb.auth.currentSession;
-    try {
-      final response = await sb.auth.signInAnonymously().timeout(const Duration(seconds: 8));
-      return response.session;
-    } catch (e) {
-      debugPrint('[DocumentAnalysisRepository] Anonymous sign-in failed: $e');
-      return null;
-    }
-  }
+  /// The vault is scoped to the Supabase user. The login screen guarantees one
+  /// before the scanner is reachable; there is deliberately no anonymous
+  /// fallback, which would save documents under a throwaway user the person
+  /// could never see again.
+  Future<Session?> _ensureSession() async => _supabase?.auth.currentSession;
 
   /// Contracts, visas and other papers: the pages go to Gemini via the backend.
   /// [files] is one or more page photos, or a single PDF of the whole document.
@@ -202,11 +194,23 @@ class DocumentAnalysisRepository {
     return DocumentAnalysisResult.fromMap(decoded);
   }
 
-  /// The signed-in (or anonymous) user's saved documents, newest first.
+  static const String _vaultCacheKey = 'saved_documents_cache_v1';
+
+  /// The vault copy kept on the device is capped, so it cannot grow forever.
+  static const int _maxCachedDocuments = 50;
+
+  /// The signed-in user's saved documents, newest first.
   /// Row-level security limits the rows to the current user.
+  ///
+  /// Every successful load is also kept on the device. When the vault cannot be
+  /// reached (no connection, no session) that copy is shown instead, so a
+  /// document that was scanned is never "lost" just because the phone is
+  /// offline. Only when there is nothing cached does the failure surface.
   Future<List<SavedDocument>> fetchSavedDocuments() async {
     final sb = _supabase;
     if (sb == null || await _ensureSession() == null) {
+      final cached = await _readCachedDocuments();
+      if (cached.isNotEmpty) return cached;
       throw const DocumentAnalysisException('Unable to open your document vault. Please check your connection.');
     }
     try {
@@ -215,10 +219,53 @@ class DocumentAnalysisRepository {
           .select()
           .order('created_at', ascending: false)
           .timeout(const Duration(seconds: 10));
+      unawaited(_cacheDocumentRows(rows));
       return rows.map(SavedDocument.fromRow).toList();
     } catch (e) {
       debugPrint('[DocumentAnalysisRepository] fetchSavedDocuments failed: $e');
+      final cached = await _readCachedDocuments();
+      if (cached.isNotEmpty) return cached;
       throw const DocumentAnalysisException('Unable to load your saved documents.');
+    }
+  }
+
+  /// Logout: the cached vault holds passports and contracts, which the next
+  /// person on this phone must not see.
+  static Future<void> clearDeviceCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_vaultCacheKey);
+    } catch (e) {
+      debugPrint('[DocumentAnalysisRepository] could not clear the vault cache: $e');
+    }
+  }
+
+  Future<void> _cacheDocumentRows(List<Map<String, dynamic>> rows) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _vaultCacheKey,
+        jsonEncode(rows.take(_maxCachedDocuments).toList()),
+      );
+    } catch (e) {
+      debugPrint('[DocumentAnalysisRepository] could not cache the vault: $e');
+    }
+  }
+
+  Future<List<SavedDocument>> _readCachedDocuments() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_vaultCacheKey);
+      if (raw == null) return const [];
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return [
+        for (final row in decoded)
+          if (row is Map) SavedDocument.fromRow(Map<String, dynamic>.from(row)),
+      ];
+    } catch (e) {
+      debugPrint('[DocumentAnalysisRepository] could not read the vault cache: $e');
+      return const [];
     }
   }
 

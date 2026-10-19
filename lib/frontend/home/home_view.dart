@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
+import '../crChecker/controllers/checklist_controller.dart';
 import '../notice/controllers/notice_controller.dart';
 import 'app_search_view.dart';
 
@@ -43,12 +44,6 @@ class HomeView extends StatefulWidget {
   State<HomeView> createState() => _HomeViewState();
 }
 
-class _ChecklistItem {
-  bool isCompleted;
-
-  _ChecklistItem({required this.isCompleted});
-}
-
 class _NoticeItem {
   final IconData icon;
   final Color accentColor;
@@ -64,18 +59,9 @@ class _NoticeItem {
 class _HomeViewState extends State<HomeView> {
   // 1. Checklist State
   bool _isChecklistExpanded = false;
-
-  /// Tick state only, in the same order as [AppStrings.checklist].
-  final List<_ChecklistItem> _checklist = [
-    _ChecklistItem(isCompleted: true),
-    _ChecklistItem(isCompleted: true),
-    _ChecklistItem(isCompleted: true),
-    _ChecklistItem(isCompleted: false),
-    _ChecklistItem(isCompleted: false),
-    _ChecklistItem(isCompleted: false),
-    _ChecklistItem(isCompleted: false),
-    _ChecklistItem(isCompleted: false),
-  ];
+  /// Shared with the other checklist views and saved across launches.
+  final ChecklistController _checklistController = ChecklistController.instance;
+  final GlobalKey _checklistCardKey = GlobalKey();
 
   // 2. Auto-Sliding Notice Slider State
   late final PageController _noticePageController;
@@ -108,20 +94,20 @@ class _HomeViewState extends State<HomeView> {
     ),
   ];
 
-  int get _completedCount => _checklist.where((item) => item.isCompleted).length;
+  int get _completedCount => _checklistController.completed;
   double get _progressPercent =>
-      _checklist.isEmpty ? 0.0 : _completedCount / _checklist.length;
+      _checklistController.progress;
 
   /// Index of the first unfinished item, or -1 when everything is done.
-  int get _nextIndex => _checklist.indexWhere((item) => !item.isCompleted);
+  int get _nextIndex => _checklistController.nextIndex;
 
   /// Unfinished items first, then completed ones (original order is kept
   /// inside each group). Collapsed view shows only the first 3.
   List<int> get _visibleIndexes {
     final pending = <int>[];
     final done = <int>[];
-    for (var i = 0; i < _checklist.length; i++) {
-      (_checklist[i].isCompleted ? done : pending).add(i);
+    for (var i = 0; i < _checklistController.total; i++) {
+      (_checklistController.isDone(i) ? done : pending).add(i);
     }
     final ordered = [...pending, ...done];
     return _isChecklistExpanded ? ordered : ordered.take(3).toList();
@@ -130,7 +116,7 @@ class _HomeViewState extends State<HomeView> {
   /// Protection status shown in the greeting badge. Driven by real progress so
   /// the app never claims "Protected" while most checks are still open.
   ({String label, IconData icon, Color color}) _statusFor(AppStrings s) {
-    if (_checklist.isNotEmpty && _completedCount == _checklist.length) {
+    if (_checklistController.total > 0 && _completedCount == _checklistController.total) {
       return (
         label: s.fullyProtected,
         icon: Icons.verified_user_rounded,
@@ -164,6 +150,8 @@ class _HomeViewState extends State<HomeView> {
     _noticePageController = PageController();
     _startNoticeAutoScroll();
     _noticeController.loadOnce();
+    _checklistController.addListener(_onChecklistChanged);
+    _checklistController.focusRequests.addListener(_onChecklistFocusRequested);
   }
 
   void _startNoticeAutoScroll() {
@@ -205,14 +193,33 @@ class _HomeViewState extends State<HomeView> {
 
   @override
   void dispose() {
+    _checklistController.removeListener(_onChecklistChanged);
+    _checklistController.focusRequests
+        .removeListener(_onChecklistFocusRequested);
     _noticeSliderTimer?.cancel();
     _noticePageController.dispose();
     super.dispose();
   }
 
-  void _toggleChecklistItem(int index) {
-    setState(() {
-      _checklist[index].isCompleted = !_checklist[index].isCompleted;
+  void _toggleChecklistItem(int index) => _checklistController.toggle(index);
+
+  /// A tick made on another screen (or restored from disk) repaints this one.
+  void _onChecklistChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Scrolls the checklist card into view when another screen asks for it,
+  /// e.g. the profile's "Action Needed" banner.
+  void _onChecklistFocusRequested() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _checklistCardKey.currentContext;
+      if (!mounted || target == null) return;
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+        alignment: 0.05,
+      );
     });
   }
 
@@ -397,6 +404,7 @@ class _HomeViewState extends State<HomeView> {
   Widget _buildHeroChecklistCard() {
     final s = AppStrings.of(context);
     return Container(
+      key: _checklistCardKey,
       decoration: BoxDecoration(
         color: AppColors.cloudDancer,
         borderRadius: BorderRadius.circular(16),
@@ -451,7 +459,7 @@ class _HomeViewState extends State<HomeView> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: _completedCount == _checklist.length
+                          color: _completedCount == _checklistController.total
                               ? AppColors.emeraldGreen
                               : AppColors.emeraldGreen.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(20),
@@ -466,16 +474,16 @@ class _HomeViewState extends State<HomeView> {
                             Icon(
                               Icons.task_alt_rounded,
                               size: 13,
-                              color: _completedCount == _checklist.length
+                              color: _completedCount == _checklistController.total
                                   ? AppColors.cloudDancer
                                   : AppColors.emeraldGreen,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               s.checklistDone(
-                                  _completedCount, _checklist.length),
+                                  _completedCount, _checklistController.total),
                               style: TextStyle(
-                                color: _completedCount == _checklist.length
+                                color: _completedCount == _checklistController.total
                                     ? AppColors.cloudDancer
                                     : AppColors.emeraldGreen,
                                 fontSize: 11,
@@ -618,7 +626,7 @@ class _HomeViewState extends State<HomeView> {
               label: Text(
                 _isChecklistExpanded
                     ? s.showFewerItems
-                    : s.showAllItems(_checklist.length),
+                    : s.showAllItems(_checklistController.total),
                 style: const TextStyle(
                   color: AppColors.royalBlue,
                   fontSize: 12,
@@ -634,7 +642,7 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Widget _buildChecklistRow(int index) {
-    final item = _checklist[index];
+    final isDone = _checklistController.isDone(index);
     final isNext = index == _nextIndex;
     final s = AppStrings.of(context);
     final text = s.checklist[index];
@@ -643,7 +651,7 @@ class _HomeViewState extends State<HomeView> {
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Semantics(
         button: true,
-        checked: item.isCompleted,
+        checked: isDone,
         label: '${text.title}. ${text.subtitle}',
         hint: s.markAsDoneHint,
         onTap: () => _toggleChecklistItem(index),
@@ -654,12 +662,12 @@ class _HomeViewState extends State<HomeView> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: item.isCompleted
+              color: isDone
                   ? AppColors.emeraldGreen.withValues(alpha: 0.06)
                   : AppColors.cloudDancer,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: item.isCompleted
+                color: isDone
                     ? AppColors.emeraldGreen.withValues(alpha: 0.35)
                     : isNext
                         ? AppColors.royalBlue.withValues(alpha: 0.5)
@@ -677,18 +685,18 @@ class _HomeViewState extends State<HomeView> {
                   height: 20,
                   margin: const EdgeInsets.only(top: 1),
                   decoration: BoxDecoration(
-                    color: item.isCompleted
+                    color: isDone
                         ? AppColors.emeraldGreen
                         : AppColors.cloudDancer,
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: item.isCompleted
+                      color: isDone
                           ? AppColors.emeraldGreen
                           : AppColors.royalBlue.withValues(alpha: 0.5),
                       width: 1.5,
                     ),
                   ),
-                  child: item.isCompleted
+                  child: isDone
                       ? const Icon(
                           Icons.check,
                           size: 14,
@@ -718,11 +726,11 @@ class _HomeViewState extends State<HomeView> {
                       Text(
                         text.title,
                         style: TextStyle(
-                          color: item.isCompleted
+                          color: isDone
                               ? AppColors.inkMuted
                               : AppColors.ink,
                           fontSize: 13,
-                          fontWeight: item.isCompleted
+                          fontWeight: isDone
                               ? FontWeight.w500
                               : FontWeight.w700,
                           height: 1.25,

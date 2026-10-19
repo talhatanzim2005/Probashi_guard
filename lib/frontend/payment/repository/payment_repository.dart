@@ -33,7 +33,20 @@ abstract class PaymentRepository {
     required double exchangeRate,
     required double amountBdt,
     required double incentiveBdt,
+    required double vatOnCommission,
+    required double usdAmount,
     String? connectedAccountId,
+  });
+
+  /// Opens a card-to-card transfer with the gateway and returns the raw session
+  /// payload, including `checkoutUrl` and `sessionId`. The balances only move
+  /// once that session is paid, via [executeInterCardTransfer].
+  Future<Map<String, dynamic>> executeCardTransfer({
+    required String fromCardId,
+    required String toCardId,
+    required double amountBdt,
+    required double vatOnCommission,
+    required double usdAmount,
   });
 
   /// Whether the Checkout session has actually been paid.

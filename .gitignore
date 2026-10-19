@@ -43,3 +43,24 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Secrets and credentials - never commit. Keep real values in backend_service/.env
+.env
+.env.*
+*.env
+!.env.example
+!*.env.example
+*.pem
+*.p12
+*.p8
+*.key
+*.pfx
+service-account*.json
+service_account*.json
+google-services.json
+GoogleService-Info.plist
+
+# Release signing material. The keystore itself lives outside the repo
+# (see android/key.properties), but never let one in by accident.
+*.jks
+*.keystore

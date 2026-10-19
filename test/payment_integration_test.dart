@@ -38,6 +38,8 @@ void main() {
             exchangeRate: 31.85,
             amountBdt: 3185.0,
             incentiveBdt: 79.625,
+            vatOnCommission: 0.3185,
+            usdAmount: 26.66,
           );
           expect(res, isNotNull);
           expect(res!['checkoutUrl'], isNotNull);
@@ -51,7 +53,7 @@ void main() {
       },
     );
 
-    test('Execute interCardSwap updates card balances', () async {
+    test('Settling a card transfer updates card balances', () async {
       await controller.init();
       if (controller.cards.length >= 2) {
         final fromCard = controller.cards[0];
@@ -59,7 +61,7 @@ void main() {
         final initialFromBalance = fromCard.balance;
         final initialToBalance = toCard.balance;
 
-        final success = await controller.interCardSwap(
+        final success = await controller.settleCardTransfer(
           fromCardId: fromCard.id,
           toCardId: toCard.id,
           amountInBdt: 1000.0,

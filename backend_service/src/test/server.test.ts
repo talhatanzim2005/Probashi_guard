@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import app from '../server.js';
+import stripeClient from '../stripeClient.js';
 import http from 'node:http';
 
 let server: http.Server;
@@ -55,7 +56,11 @@ test('GET /api/rates returns dynamic exchange rates', async () => {
   assert.strictEqual(data.rates.BDT, 1.0);
 });
 
-test('POST /api/checkout/send-money completes remittance transaction', async () => {
+test('POST /api/checkout/send-money refuses an unverified caller before charging', async () => {
+  // No Authorization header, so there is no payer to credit. The refusal has to
+  // come BEFORE Stripe takes anything, or a later rejection would strand real
+  // money. The happy path needs a verified account and a live Supabase row, so
+  // it is covered by the integration suite rather than here.
   const payload = {
     cardId: 'card_wps',
     sourceCardId: 'card_wps',
@@ -74,14 +79,12 @@ test('POST /api/checkout/send-money completes remittance transaction', async () 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  assert.strictEqual(res.status, 201);
+  assert.strictEqual(res.status, 403);
   const data = await res.json() as any;
-  assert.strictEqual(data.success, true);
-  assert.strictEqual(data.transaction.title, 'Tanzim');
-  assert.strictEqual(data.transaction.amount, 3185);
-  assert.strictEqual(data.transaction.converted_amount, 100);
-  assert.strictEqual(data.transaction.currency, 'SAR');
-  assert.strictEqual(data.transaction.exchange_rate, 31.85);
+  assert.strictEqual(data.code, 'phone_not_verified');
+  // Nothing resembling a Checkout session may come back from a refusal.
+  assert.strictEqual(data.checkoutUrl, undefined);
+  assert.strictEqual(data.sessionId, undefined);
 });
 
 test('POST /api/connect/create-account validation and response shape', async () => {
@@ -96,4 +99,136 @@ test('POST /api/connect/create-account validation and response shape', async () 
   // Since test placeholder key is in .env, Stripe may respond with 500 or 201
   // We verify that the endpoint is mapped and handled cleanly
   assert.ok(res.status === 201 || res.status === 500);
+});
+
+test('POST /api/webhooks/stripe rejects requests without a signature', async () => {
+  const res = await fetch(`${baseUrl}/api/webhooks/stripe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'checkout.session.completed' }),
+  });
+  assert.strictEqual(res.status, 400);
+});
+
+test('POST /api/webhooks/stripe rejects a forged signature without echoing secrets', async () => {
+  const res = await fetch(`${baseUrl}/api/webhooks/stripe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'stripe-signature': 't=1,v1=deadbeef' },
+    body: JSON.stringify({ type: 'checkout.session.completed' }),
+  });
+  assert.strictEqual(res.status, 400);
+  const body = await res.text();
+  assert.ok(!body.includes('whsec_'));
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (secret) assert.ok(!body.includes(secret));
+});
+
+test('POST /api/webhooks/stripe accepts a correctly signed event', async () => {
+  // The negative tests above pass even when verification is broken outright, so
+  // this is the one that proves the endpoint still reads the raw bytes Stripe
+  // signed. A zero-amount session is used so nothing is credited.
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    // Nothing to sign with; the suite still reports this as a pass but says why.
+    console.log('skipped: STRIPE_WEBHOOK_SECRET not set');
+    return;
+  }
+
+  const payload = JSON.stringify({
+    id: 'evt_test_signed',
+    object: 'event',
+    type: 'checkout.session.completed',
+    data: {
+      object: {
+        id: 'cs_test_signed_probe',
+        object: 'checkout.session',
+        amount_total: 0,
+        metadata: {},
+      },
+    },
+  });
+  const header = stripeClient.webhooks.generateTestHeaderString({ payload, secret });
+
+  const res = await fetch(`${baseUrl}/api/webhooks/stripe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'stripe-signature': header },
+    body: payload,
+  });
+
+  // 200 means the signature verified and the handler ran. A 400 here means the
+  // raw body never reached constructEvent.
+  assert.strictEqual(res.status, 200);
+});
+
+test('POST /api/checkout/card-transfer rejects a transfer to the same card', async () => {
+  const res = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fromCardId: 'card_wps', toCardId: 'card_wps', amountBdt: 5000 }),
+  });
+  assert.strictEqual(res.status, 400);
+});
+
+test('POST /api/checkout/card-transfer rejects a non-positive amount', async () => {
+  const res = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fromCardId: 'card_wps', toCardId: 'card_visa', amountBdt: 0 }),
+  });
+  assert.strictEqual(res.status, 400);
+});
+
+test('POST /api/checkout/card-transfer opens a USD Checkout session', async () => {
+  const res = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fromCardId: 'card_wps', toCardId: 'card_visa', amountBdt: 5000 }),
+  });
+  assert.strictEqual(res.status, 201);
+  const data = await res.json() as any;
+  assert.ok(data.checkoutUrl.startsWith('https://checkout.stripe.com/'));
+  assert.ok(data.sessionId.startsWith('cs_'));
+
+  // The sender typed BDT; Stripe must have been charged in USD.
+  const session = await stripeClient.checkout.sessions.retrieve(data.sessionId);
+  assert.strictEqual(session.currency, 'usd');
+  assert.strictEqual(session.amount_total, Math.round(data.usdAmount * 100));
+
+  // 0.01% VAT on commission, charged on top of the transfer.
+  assert.ok(Math.abs(data.vatOnCommission - 0.5) < 1e-6);
+});
+
+test('POST /api/checkout/card-transfer ignores a client-supplied amount and fee', async () => {
+  // The arbitrage this closes: post a real amountBdt but a token usdAmount, and
+  // the old code charged the token figure while the ledger recorded the real
+  // one. Both usdAmount and vatOnCommission are now derived server-side, so
+  // these values must have no effect at all.
+  const honest = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fromCardId: 'card_wps', toCardId: 'card_visa', amountBdt: 5000 }),
+  });
+  assert.strictEqual(honest.status, 201);
+  const honestData = await honest.json() as any;
+
+  const tampered = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fromCardId: 'card_wps',
+      toCardId: 'card_visa',
+      amountBdt: 5000,
+      usdAmount: 0.5,        // "charge me 50 cents for a 5000 BDT move"
+      vatOnCommission: 0,    // "and waive the fee"
+    }),
+  });
+  assert.strictEqual(tampered.status, 201);
+  const tamperedData = await tampered.json() as any;
+
+  assert.strictEqual(tamperedData.usdAmount, honestData.usdAmount);
+  assert.strictEqual(tamperedData.vatOnCommission, honestData.vatOnCommission);
+
+  // And confirm against Stripe itself, not just our response body.
+  const session = await stripeClient.checkout.sessions.retrieve(tamperedData.sessionId);
+  assert.strictEqual(session.amount_total, Math.round(honestData.usdAmount * 100));
 });

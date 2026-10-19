@@ -7,12 +7,20 @@ import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:probashi_guard/frontend/payment/repository/supabase_payment_repository.dart';
 
+// Passed in at run time so no project credentials sit in the repo. This test
+// writes to the real Supabase project, so without them it simply skips:
+//   flutter test test/verify_payment_run_test.dart \
+//     --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_KEY=...
+const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const _supabaseKey = String.fromEnvironment('SUPABASE_KEY');
+
+String? get _skipReason => (_supabaseUrl.isEmpty || _supabaseKey.isEmpty)
+    ? 'needs --dart-define=SUPABASE_URL and --dart-define=SUPABASE_KEY'
+    : null;
+
 void main() {
   test('Execute and verify live payment: 100 USD to SAR', () async {
-    final client = SupabaseClient(
-      'https://xfwxiawapksepskcevwe.supabase.co',
-      'sb_publishable_j189-L73p34K9QMvj-2Msg_dTYOWhIh',
-    );
+    final client = SupabaseClient(_supabaseUrl, _supabaseKey);
 
     // 1. Reset baseline wallet balance to 98420.12
     await client
@@ -61,6 +69,8 @@ void main() {
       exchangeRate: exchangeRate,
       amountBdt: amountBdt,
       incentiveBdt: incentiveBdt,
+      vatOnCommission: sourceAmount * 0.0001,
+      usdAmount: (amountBdt + incentiveBdt) / 119.5,
     );
 
     expect(result['checkoutUrl'], 'https://checkout.stripe.com/c/pay/$mockSessionId');
@@ -122,5 +132,5 @@ void main() {
     print('====================================================\n');
 
     expect(balanceAfter, balanceBefore - amountBdt);
-  });
+  }, skip: _skipReason);
 }
