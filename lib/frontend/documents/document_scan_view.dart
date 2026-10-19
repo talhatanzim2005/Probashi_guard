@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mrz_parser/mrz_parser.dart';
 import 'package:passport_scanner/passport_scanner.dart';
+import '../../l10n/language_controller.dart';
 import '../../theme/app_colors.dart';
 import 'document_detail_view.dart';
 import 'models/document_analysis.dart';
@@ -45,7 +46,7 @@ void _deletePassportImage(String? path) {
   File(path).delete().catchError((Object _) => File(path));
 }
 
-/// Live camera scanner: frame a labor document, pick the output language,
+/// Live camera scanner: frame a labor document, read in the app language,
 /// and capture it for an AI audit by backend_service.
 class DocumentScanView extends StatefulWidget {
   final DocumentAnalysisRepository? repository;
@@ -69,7 +70,12 @@ class _DocumentScanViewState extends State<DocumentScanView>
 
   CameraController? _controller;
   String? _cameraError;
-  DocumentLanguage _language = DocumentLanguage.bangla;
+  /// Follows the app-wide language (set in Menu or Profile). The scanner has no
+  /// language picker of its own. Chinese is no longer offered, so results come
+  /// back in Bangla or English only.
+  DocumentLanguage get _language => LanguageController.instance.isBangla
+      ? DocumentLanguage.bangla
+      : DocumentLanguage.english;
   _ScanStage _stage = _ScanStage.idle;
   late _ScanMode _mode =
       (widget.initialPassportMode && _mrzSupported) ? _ScanMode.passport : _ScanMode.document;
@@ -142,29 +148,53 @@ class _DocumentScanViewState extends State<DocumentScanView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    LanguageController.instance.addListener(_onAppLanguageChanged);
     _initCamera();
+  }
+
+  // Repaint the hints and progress labels when the app language changes.
+  void _onAppLanguageChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    LanguageController.instance.removeListener(_onAppLanguageChanged);
     _controller?.dispose();
     super.dispose();
   }
 
+  /// Set when the app really went to the background, so coming back is the only
+  /// time the camera is restarted automatically.
+  bool _wentToBackground = false;
+
+  /// Stops two camera starts from running at once.
+  bool _initializing = false;
+
   // Release the camera while the app is in the background so other apps
   // (and the gallery picker) can use it. In passport mode the scanner manages its own.
+  //
+  // Only `paused` counts as background. `inactive` also fires for the status
+  // bar, the notification shade and permission dialogs, and the camera start
+  // itself can trigger it. Releasing and restarting the camera on `inactive`
+  // made it loop forever: flickering status bar, leaked camera sessions, and
+  // eventually a crash.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final controller = _controller;
-    if (state == AppLifecycleState.inactive && controller != null) {
-      _controller = null;
-      controller.dispose();
-      if (mounted) setState(() {});
-    } else if (state == AppLifecycleState.resumed &&
-        _controller == null &&
-        _mode == _ScanMode.document) {
-      _initCamera();
+    if (state == AppLifecycleState.paused) {
+      _wentToBackground = true;
+      final controller = _controller;
+      if (controller != null) {
+        _controller = null;
+        controller.dispose();
+        if (mounted) setState(() {});
+      }
+    } else if (state == AppLifecycleState.resumed && _wentToBackground) {
+      _wentToBackground = false;
+      if (_controller == null && _mode == _ScanMode.document) {
+        _initCamera();
+      }
     }
   }
 
@@ -191,6 +221,16 @@ class _DocumentScanViewState extends State<DocumentScanView>
   }
 
   Future<void> _initCamera() async {
+    if (_initializing) return;
+    _initializing = true;
+    try {
+      await _startCamera();
+    } finally {
+      _initializing = false;
+    }
+  }
+
+  Future<void> _startCamera() async {
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -650,18 +690,6 @@ class _DocumentScanViewState extends State<DocumentScanView>
             ),
             const SizedBox(height: 8),
           ],
-          SegmentedButton<DocumentLanguage>(
-            segments: [
-              for (final lang in DocumentLanguage.values)
-                ButtonSegment(value: lang, label: Text(lang.label)),
-            ],
-            selected: {_language},
-            showSelectedIcon: false,
-            onSelectionChanged: _isBusy
-                ? null
-                : (s) => setState(() => _language = s.first),
-            style: segmentStyle,
-          ),
           const SizedBox(height: 12),
           Expanded(
             child: ClipRRect(
