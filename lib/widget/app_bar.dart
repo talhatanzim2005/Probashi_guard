@@ -3,7 +3,6 @@ import '../frontend/home/app_search_view.dart';
 import '../frontend/payment/controllers/payment_controller.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_colors.dart';
-import 'language_toggle_switch.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onProfileTap;
@@ -361,13 +360,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
                         children: [
                           _buildSearchField(),
                           const SizedBox(height: CustomAppBar.kBarGap),
-                          Row(
-                            children: [
-                              Expanded(child: _buildBalanceBar()),
-                              const SizedBox(width: 8),
-                              const LanguageToggleSwitch(compact: true),
-                            ],
-                          ),
+                          _buildBalanceBar(),
                         ],
                       ),
                     ),

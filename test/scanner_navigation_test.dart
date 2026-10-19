@@ -36,8 +36,15 @@ void main() {
 
     expect(find.byType(DocumentScanView), findsOneWidget);
     expect(find.text('Document Scanner'), findsOneWidget);
-    // Both document paths are offered: the language choice and the vault.
-    expect(find.descendant(of: find.byType(DocumentScanView), matching: find.text('বাংলা')), findsOneWidget);
+    // The scanner has no language picker of its own any more: results follow
+    // the app language set in Menu or Profile. The vault is still one tap away.
+    expect(
+      find.descendant(
+        of: find.byType(DocumentScanView),
+        matching: find.byWidgetPredicate((w) => w is SegmentedButton),
+      ),
+      findsNothing,
+    );
     expect(find.text('Vault'), findsOneWidget);
   });
 
