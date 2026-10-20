@@ -12,10 +12,15 @@ class AppSearchView extends StatefulWidget {
   final void Function(int tabIndex)? onNavigateTab;
   final VoidCallback? onOpenMenu;
 
+  /// Opens the profile screen with the shell's handlers. Without it the search
+  /// opens a profile whose rows say "coming soon".
+  final VoidCallback? onOpenProfile;
+
   const AppSearchView({
     super.key,
     this.onNavigateTab,
     this.onOpenMenu,
+    this.onOpenProfile,
   });
 
   @override
@@ -37,6 +42,7 @@ class _AppSearchViewState extends State<AppSearchView> {
       SearchServiceRegistry.getServices(
     onNavigateTab: widget.onNavigateTab,
     onOpenMenu: widget.onOpenMenu,
+    onOpenProfile: widget.onOpenProfile,
   );
 
   @override

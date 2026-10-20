@@ -60,6 +60,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Probashi Guard uses the camera to photograph contracts and visas, and to read your passport, so they can be checked before you sign.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Probashi Guard opens your photos only when you choose a picture of a document to check.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

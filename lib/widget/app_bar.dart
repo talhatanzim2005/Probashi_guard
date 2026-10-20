@@ -3,6 +3,8 @@ import '../frontend/home/app_search_view.dart';
 import '../frontend/payment/controllers/payment_controller.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_colors.dart';
+import 'coming_soon.dart';
+import 'ink_surface.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onProfileTap;
@@ -47,12 +49,12 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   // (Scaffold adds the status-bar height on top of this automatically.)
   @override
   Size get preferredSize => const Size.fromHeight(
-        kSearchHeight +
-            kBarGap +
-            kBalanceHeight +
-            (kVerticalPadding * 2) +
-            kBorderWidth,
-      );
+    kSearchHeight +
+        kBarGap +
+        kBalanceHeight +
+        (kVerticalPadding * 2) +
+        kBorderWidth,
+  );
 }
 
 class _CustomAppBarState extends State<CustomAppBar> {
@@ -69,15 +71,15 @@ class _CustomAppBarState extends State<CustomAppBar> {
   }
 
   BoxDecoration _softShadowCircle() => BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.royalBlue.withValues(alpha: 0.06),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      );
+    shape: BoxShape.circle,
+    boxShadow: [
+      BoxShadow(
+        color: AppColors.royalBlue.withValues(alpha: 0.06),
+        blurRadius: 6,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
 
   Widget _circleButton({
     required IconData icon,
@@ -168,7 +170,10 @@ class _CustomAppBarState extends State<CustomAppBar> {
               color: AppColors.royalBlue,
               size: 22,
             ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 42,
+              minHeight: 42,
+            ),
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
@@ -194,84 +199,89 @@ class _CustomAppBarState extends State<CustomAppBar> {
               : AppStrings.of(context).balanceHiddenA11y,
           onTap: _toggleBalance,
           excludeSemantics: true,
-          child: InkWell(
+          child: InkSurface(
             onTap: _toggleBalance,
             borderRadius: BorderRadius.circular(12),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOut,
-              // Fixed height: the bar never changes size when toggled, so the
-              // page below it does not jump.
-              height: CustomAppBar.kBalanceHeight,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            // Fixed height: the bar never changes size when toggled, so the
+            // page below it does not jump.
+            height: CustomAppBar.kBalanceHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: visible
+                  ? AppColors.emeraldGreen.withValues(alpha: 0.06)
+                  : AppColors.cloudDancer,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
                 color: visible
-                    ? AppColors.emeraldGreen.withValues(alpha: 0.06)
-                    : AppColors.cloudDancer,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: visible
-                      ? AppColors.emeraldGreen
-                      : AppColors.royalBlue.withValues(alpha: 0.30),
-                  width: 1.2,
-                ),
+                    ? AppColors.emeraldGreen
+                    : AppColors.royalBlue.withValues(alpha: 0.30),
+                width: 1.2,
               ),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: visible
-                    ? Row(
-                        key: const ValueKey('balance-shown'),
-                        children: [
-                          const Icon(
-                            Icons.account_balance_wallet_rounded,
-                            size: 18,
-                            color: AppColors.emeraldGreen,
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: visible
+                  ? Row(
+                      key: const ValueKey('balance-shown'),
+                      children: [
+                        const Icon(
+                          Icons.account_balance_wallet_rounded,
+                          size: 18,
+                          color: AppColors.emeraldGreen,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            effectiveBalance,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.emeraldGreen,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.2,
+                              // Equal-width digits: no wobble.
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
+                        ),
+                        const Icon(
+                          Icons.visibility_off_outlined,
+                          size: 18,
+                          color: AppColors.royalBlue,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      key: const ValueKey('balance-hidden'),
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.touch_app_outlined,
+                          size: 18,
+                          color: AppColors.royalBlue,
+                        ),
+                        const SizedBox(width: 6),
+                        // Bangla runs wider than the bar on a 320dp phone.
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
                             child: Text(
-                              effectiveBalance,
+                              AppStrings.of(context).tapToSeeBalance,
                               maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: AppColors.emeraldGreen,
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.2,
-                                // Equal-width digits: no wobble.
-                                fontFeatures: [FontFeature.tabularFigures()],
+                                color: AppColors.royalBlue,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.1,
                               ),
                             ),
                           ),
-                          const Icon(
-                            Icons.visibility_off_outlined,
-                            size: 18,
-                            color: AppColors.royalBlue,
-                          ),
-                        ],
-                      )
-                    : Row(
-                        key: const ValueKey('balance-hidden'),
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.touch_app_outlined,
-                            size: 18,
-                            color: AppColors.royalBlue,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            AppStrings.of(context).tapToSeeBalance,
-                            style: const TextStyle(
-                              color: AppColors.royalBlue,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.1,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         );
@@ -351,7 +361,12 @@ class _CustomAppBarState extends State<CustomAppBar> {
                     _circleButton(
                       icon: Icons.person_rounded,
                       label: AppStrings.of(context).menuProfile,
-                      onTap: widget.onProfileTap,
+                      onTap:
+                          widget.onProfileTap ??
+                          () => showComingSoon(
+                            context,
+                            AppStrings.of(context).menuProfile,
+                          ),
                     ),
                     const SizedBox(width: CustomAppBar.kSideSpacing),
                     Expanded(
@@ -368,7 +383,12 @@ class _CustomAppBarState extends State<CustomAppBar> {
                     _circleButton(
                       icon: Icons.menu_rounded,
                       label: AppStrings.of(context).openMenu,
-                      onTap: widget.onMenuTap,
+                      onTap:
+                          widget.onMenuTap ??
+                          () => showComingSoon(
+                            context,
+                            AppStrings.of(context).menu,
+                          ),
                     ),
                   ],
                 ),

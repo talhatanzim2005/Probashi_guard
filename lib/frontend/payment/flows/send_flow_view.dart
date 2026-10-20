@@ -231,7 +231,8 @@ class _SendFlowViewState extends State<SendFlowView> {
       builder: (ctx) => Dialog(
         backgroundColor: AppColors.cloudDancer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
+        // Taller than a phone held sideways, so it scrolls rather than overflow.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -330,15 +331,20 @@ class _SendFlowViewState extends State<SendFlowView> {
           ),
           onPressed: _handleBack,
         ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildStepIndicator(0, s.stepRecipient),
-            _buildStepDivider(),
-            _buildStepIndicator(1, s.stepAmount),
-            _buildStepDivider(),
-            _buildStepIndicator(2, s.stepConfirm),
-          ],
+        // Three steps side by side: on a narrow phone or with large system
+        // text they shrink together rather than run off the bar.
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildStepIndicator(0, s.stepRecipient),
+              _buildStepDivider(),
+              _buildStepIndicator(1, s.stepAmount),
+              _buildStepDivider(),
+              _buildStepIndicator(2, s.stepConfirm),
+            ],
+          ),
         ),
         centerTitle: true,
       ),

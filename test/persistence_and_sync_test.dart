@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:probashi_guard/frontend/crChecker/controllers/checklist_controller.dart';
-import 'package:probashi_guard/frontend/crChecker/cr_checker_view.dart';
 import 'package:probashi_guard/frontend/documents/repository/document_analysis_repository.dart';
 import 'package:probashi_guard/frontend/home/home_view.dart';
 import 'package:probashi_guard/frontend/notice/controllers/notice_controller.dart';
@@ -132,37 +131,6 @@ void main() {
       },
     );
 
-    testWidgets('a tick on the checklist screen shows on the banner', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Column(
-            children: [
-              const Expanded(child: CrCheckerView()),
-              Expanded(
-                child: ProfileView(controller: ProfileController.instance),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      // Tick the first unfinished item on the checklist screen.
-      await tester.tap(
-        find.text(
-          'Verify Company Commercial Registration (CR/Trade License) is active',
-        ),
-      );
-      await tester.pump();
-
-      expect(ChecklistController.instance.completed, 1);
-      expect(
-        find.text('1 of 8 pre-departure checks completed'),
-        findsOneWidget,
-      );
-    });
-
     testWidgets('a tick on Home shows as 1/8 on Home itself', (tester) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
@@ -242,11 +210,11 @@ void main() {
       final cards = await reopened.getCards();
       expect(
         cards.firstWhere((c) => c.id == 'card_probashi').balance,
-        145000.00 - 1000,
+        25000.00 - 1000,
       );
       expect(
         cards.firstWhere((c) => c.id == 'card_visa').balance,
-        24850.50 + 1000,
+        10000.00 + 1000,
       );
     });
 

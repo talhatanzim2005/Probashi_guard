@@ -1,6 +1,8 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
 import { createHash } from 'crypto';
-import { ApiError, FinishReason, GoogleGenAI, ThinkingLevel } from '@google/genai';
+import { resolveCaller } from '../supabaseUser.js';
+import { signAnalysis, verifyAnalysis } from '../analysisToken.js';
+import { ModelOutputError, getOpenRouter, modelList, statusOf, withModelFallback } from '../ai/openrouter.js';
 import {
   LOAN_TRAP_MAX_SAR,
   LOAN_TRAP_MIN_SAR,
@@ -25,16 +27,30 @@ const router = Router();
 // Anything larger (e.g. 25MB+) is rejected immediately with 413.
 router.use(express.json({ limit: '20mb' }));
 
-const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
-// Gemini accepts up to 20 MB of inline data per request; base64 adds a third.
+// Vision models on OpenRouter's free tier, tried in this order; DOCUMENT_MODELS
+// (comma separated) replaces the list. Free models are withdrawn or busy often,
+// so more than one is listed. thinkingmachines/inkling:free is deliberately not
+// here: OpenRouter answers 403 "only available on agentic harnesses" to API calls.
+const DEFAULT_DOCUMENT_MODELS = [
+  'nvidia/nemotron-3.5-super-vl:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'google/gemma-4-31b-it:free',
+];
+// Photos go inline as base64, which adds a third to their size.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-// One scan may carry several pages of the same document (or one PDF), so the
-// per-file cap above is not enough on its own: cap the whole request too.
+// One scan may carry several pages of the same document, so the per-file cap
+// above is not enough on its own: cap the whole request too.
 const MAX_TOTAL_BYTES = 16 * 1024 * 1024;
-// More pages than this in a single call runs past the deadline below.
+// Room for the audit and the page-by-page translation. A reasoning model spends
+// part of this thinking, so it is generous; DOCUMENT_MAX_TOKENS overrides it.
+const MAX_OUTPUT_TOKENS = Number(process.env.DOCUMENT_MAX_TOKENS) || 16000;
+// More pages than this in a single call is slow for the model and heavy to send.
 const MAX_FILES = 10;
-// The app stops waiting after 30 s, so the server gives up first and says why.
-const ANALYSIS_DEADLINE_MS = 27_000;
+// How long the model may take to answer. This matches the app's own limit for
+// the whole request (DocumentAnalysisRepository.analyzeTimeout, 120 s). The
+// app's clock starts before the upload, so on a request that runs the full
+// time the app's message is the one the person sees.
+const ANALYSIS_DEADLINE_MS = 120_000;
 
 const LANGUAGES = {
   bn: 'Bangla (বাংলা)',
@@ -61,23 +77,20 @@ const PERIODS = ['monthly', 'weekly', 'daily', 'yearly', 'unknown'] as const;
 const PAID_BY = ['worker', 'employer', 'unknown'] as const;
 const STAMP_KINDS = ['government_seal', 'consular_stamp', 'notary_stamp', 'company_stamp', 'none', 'unclear'] as const;
 
-/** Who read the document: Gemini from a photo, or the phone from a passport's MRZ. */
-const SOURCE_ENGINES = ['Gemini', 'On-device MRZ'] as const;
+/**
+ * Who read the document: a vision model through OpenRouter, or the phone from a
+ * passport's MRZ. "Gemini" stays valid because documents saved before the
+ * scanner moved to OpenRouter carry it.
+ */
+const SOURCE_ENGINES = ['OpenRouter AI', 'Gemini', 'On-device MRZ'] as const;
 export type SourceEngine = (typeof SOURCE_ENGINES)[number];
-
-const BLOCKED_FINISH_REASONS = new Set<string>([
-  FinishReason.SAFETY,
-  FinishReason.BLOCKLIST,
-  FinishReason.PROHIBITED_CONTENT,
-  FinishReason.SPII,
-  FinishReason.IMAGE_SAFETY,
-  FinishReason.IMAGE_PROHIBITED_CONTENT,
-]);
 
 const nullable = (type: string) => ({ type: [type, 'null'] });
 const riskSchema = { type: 'string', enum: RISKS };
 
-// Constrains Gemini's JSON output; normalizeAnalysis() still validates it.
+// The JSON the model must return. Free models do not all support constrained
+// output, so the schema is also written into the prompt (see buildSystemPrompt),
+// and normalizeAnalysis() validates whatever comes back.
 const ANALYSIS_SCHEMA = {
   type: 'object',
   properties: {
@@ -188,17 +201,6 @@ const ANALYSIS_SCHEMA = {
   ],
 };
 
-let geminiClient: GoogleGenAI | null = null;
-
-// Created on first use so a missing key returns 503 instead of crashing the server at boot.
-function getGeminiClient(): GoogleGenAI | null {
-  if (geminiClient) return geminiClient;
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
-  geminiClient = new GoogleGenAI({ apiKey });
-  return geminiClient;
-}
-
 function buildSystemPrompt(language: LanguageCode): string {
   return `You are Probashi Guard, a labor-rights auditor protecting Bangladeshi migrant workers in the Gulf. You inspect photos of employment contracts, visas, offer letters, receipts, loan papers, ID cards and anything else an employer or recruiter asks a worker to sign.
 
@@ -238,12 +240,16 @@ summary_3_lines must be exactly 3 short lines a worker with basic literacy can u
 
 translation_segments must cover ALL visible text in reading order, one entry per paragraph, clause or table row: "original" is the text exactly as written (any language), "translated" is its ${LANGUAGES[language]} translation. Translate Arabic legal clauses faithfully, keeping their legal meaning. Mark blank lines and empty fields in "original" as "[BLANK]".
 
-If the image is not a readable document, set is_legible to false, verdict to "PROCEED_WITH_CAUTION", and use summary_3_lines to explain how to retake the photo.`;
+If the image is not a readable document, set is_legible to false, verdict to "PROCEED_WITH_CAUTION", and use summary_3_lines to explain how to retake the photo.
+
+RESPONSE FORMAT:
+Reply with exactly one JSON object and nothing else: no markdown code fences, no commentary before or after it. It must follow this JSON Schema, with every required property present (use null where the schema allows it and the page does not show the value):
+${JSON.stringify(ANALYSIS_SCHEMA)}`;
 }
 
 type ParsedFile = { mime: string; base64: string; sha256: string };
 
-/** One page of a scan: a photo, or a PDF holding the whole document. */
+/** One page of a scan: a photo (JPEG, PNG or WebP), as the vision models take it. */
 export function parseScanFile(input: unknown): ParsedFile | { error: string } {
   if (typeof input !== 'string' || input.length === 0) {
     return { error: 'imageBase64 is required' };
@@ -259,8 +265,7 @@ export function parseScanFile(input: unknown): ParsedFile | { error: string } {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) mime = 'image/jpeg';
   else if (bytes.subarray(0, 4).toString('hex') === '89504e47') mime = 'image/png';
   else if (bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP') mime = 'image/webp';
-  else if (bytes.subarray(0, 5).toString() === '%PDF-') mime = 'application/pdf';
-  if (!mime) return { error: 'Unsupported file format; send a JPEG, PNG or WebP photo, or a PDF' };
+  if (!mime) return { error: 'Unsupported file format; send a JPEG, PNG or WebP photo' };
 
   return {
     mime,
@@ -272,7 +277,7 @@ export function parseScanFile(input: unknown): ParsedFile | { error: string } {
 /**
  * The pages of one scan, from `filesBase64` / `imagesBase64` (an array) or the
  * single `imageBase64` older clients send. Several photos are read as
- * consecutive pages of the same document; a PDF is a document on its own.
+ * consecutive pages of the same document.
  */
 export function parseScanFiles(body: unknown): ParsedFile[] | { error: string } {
   const b = obj(body);
@@ -293,9 +298,6 @@ export function parseScanFiles(body: unknown): ParsedFile[] | { error: string } 
       return { error: `These pages are too large together (max ${MAX_TOTAL_BYTES / 1024 / 1024} MB). Send fewer pages.` };
     }
     files.push(file);
-  }
-  if (files.length > 1 && files.some((f) => f.mime === 'application/pdf')) {
-    return { error: 'Send either a single PDF or photos of the pages, not both.' };
   }
   return files;
 }
@@ -447,30 +449,11 @@ export function buildReport(a: Analysis) {
  * session and 'invalid' for a token Supabase rejects.
  */
 async function resolveUserId(req: Request): Promise<string | null | 'invalid'> {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) return null;
-  const isTestEnv =
-    process.env.NODE_ENV === 'test' ||
-    process.argv.some((arg) => arg.includes('test')) ||
-    process.execArgv.some((arg) => arg.includes('test'));
-  if (isTestEnv && header === 'Bearer mock-test-token') {
-    return '00000000-0000-0000-0000-000000000000';
-  }
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !anonKey) return null;
-
-  try {
-    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: { apikey: anonKey, Authorization: header },
-    });
-    if (!res.ok) return 'invalid';
-    const user = (await res.json()) as { id?: string };
-    return user.id ?? 'invalid';
-  } catch (err) {
-    console.error('[Documents] Supabase auth lookup failed:', err);
-    return null;
-  }
+  // The shared resolver (src/supabaseUser.ts) owns token checking and the
+  // gated developer bypass. Anonymous sessions are enough to scan a document.
+  const caller = await resolveCaller(req);
+  if (caller.ok) return caller.userId;
+  return caller.reason === 'invalid' ? 'invalid' : null;
 }
 
 async function saveDocument(row: {
@@ -541,81 +524,139 @@ class ScanError extends Error {
   }
 }
 
-/** One multimodal Gemini call: OCR, translation, stamp/signature check and the audit. */
-async function auditWithGemini(
-  ai: GoogleGenAI,
-  model: string,
+/**
+ * The JSON object in a model's reply. Constrained output is not available on
+ * every free model, so a reply may arrive wrapped in a markdown fence, or with a
+ * sentence before or after it; this finds the first balanced { ... } and parses
+ * that. Anything else is a ModelOutputError, so the next model gets a turn.
+ */
+export function parseModelJson(text: string | null | undefined): Record<string, any> {
+  const body = (text ?? '').trim();
+  if (!body) throw new ModelOutputError('The model returned no content');
+
+  const attempt = (candidate: string): Record<string, any> | null => {
+    try {
+      const parsed = JSON.parse(candidate);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const direct = attempt(body);
+  if (direct) return direct;
+
+  // Walk to the end of the first balanced object, skipping braces inside strings.
+  const start = body.indexOf('{');
+  if (start >= 0) {
+    let depth = 0;
+    let inString = false;
+    for (let i = start; i < body.length; i++) {
+      const ch = body[i];
+      if (inString) {
+        if (ch === '\\') i++;
+        else if (ch === '"') inString = false;
+      } else if (ch === '"') inString = true;
+      else if (ch === '{') depth++;
+      else if (ch === '}' && --depth === 0) {
+        const found = attempt(body.slice(start, i + 1));
+        if (found) return found;
+        break;
+      }
+    }
+  }
+  throw new ModelOutputError('The model did not return a JSON object');
+}
+
+/** The scan prompt for [pageCount] images, which are the pages in the order they were taken. */
+function scanInstruction(pageCount: number, language: LanguageCode): string {
+  return pageCount > 1
+    ? `Audit this document. The ${pageCount} images are pages 1-${pageCount} of the SAME document, in order: ` +
+        `read them as one document and return one audit covering all of them. Answer in ${LANGUAGES[language]}.`
+    : `Audit this document. Answer in ${LANGUAGES[language]}.`;
+}
+
+/**
+ * One multimodal call: OCR, translation, stamp/signature check and the audit.
+ * The photos go in the standard OpenAI vision format (a base64 data URL per
+ * image). Models are tried in order; the one that answered is returned with the
+ * audit. The whole attempt shares one deadline.
+ */
+async function auditWithModel(
+  models: string[],
   files: ParsedFile[],
   language: LanguageCode,
-): Promise<Record<string, any>> {
-  const deadline = AbortSignal.timeout(ANALYSIS_DEADLINE_MS);
-  // Several photos are the pages of one document, in the order they were taken.
-  const instruction =
-    files.length > 1
-      ? `Audit this document. The ${files.length} images are pages 1-${files.length} of the SAME document, in order: ` +
-        `read them as one document and return one audit covering all of them. Answer in ${LANGUAGES[language]}.`
-      : files[0].mime === 'application/pdf'
-        ? `Audit this document. The PDF may hold several pages: read every page and return one audit covering all of them. Answer in ${LANGUAGES[language]}.`
-        : `Audit this document. Answer in ${LANGUAGES[language]}.`;
-  let response;
-  try {
-    response = await ai.models.generateContent({
-      model,
-      contents: [
+  deadline: AbortSignal,
+): Promise<{ raw: Record<string, any>; model: string }> {
+  const ai = getOpenRouter();
+  if (!ai) throw new ScanError(503, 'Document scanner is not configured on the server.');
+
+  const served = await withModelFallback(
+    models,
+    async (model) => {
+      const response = await ai.chat.completions.create(
         {
-          role: 'user',
-          parts: [
-            ...files.map((file) => ({ inlineData: { mimeType: file.mime, data: file.base64 } })),
-            { text: instruction },
+          model,
+          messages: [
+            { role: 'system', content: buildSystemPrompt(language) },
+            {
+              role: 'user',
+              content: [
+                ...files.map((file) => ({
+                  type: 'image_url' as const,
+                  image_url: { url: `data:${file.mime};base64,${file.base64}` },
+                })),
+                { type: 'text' as const, text: scanInstruction(files.length, language) },
+              ],
+            },
           ],
+          // Honoured where supported, ignored elsewhere; parseModelJson copes either way.
+          response_format: { type: 'json_object' },
+          max_tokens: MAX_OUTPUT_TOKENS,
+          temperature: 0.1,
+          // Low effort keeps a full-page audit quick; the hard rules run in code anyway.
+          reasoning_effort: 'low',
         },
-      ],
-      config: {
-        systemInstruction: buildSystemPrompt(language),
-        responseMimeType: 'application/json',
-        responseJsonSchema: ANALYSIS_SCHEMA,
-        maxOutputTokens: 32768,
-        // Low thinking cut a full-page audit from ~19 s to ~13 s with the same findings.
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        abortSignal: deadline,
-      },
-    });
-  } catch (err) {
-    if (deadline.aborted) {
-      throw new ScanError(504, 'Checking this document took too long. Please send fewer pages at a time and try again.');
-    }
-    if (err instanceof ApiError) {
-      console.error(`[Documents] Gemini error ${err.status}:`, err.message);
-      if (err.status === 429) throw new ScanError(429, 'The document scanner is busy. Please try again in a minute.');
-    } else {
-      console.error('[Documents] Gemini request failed:', err);
-    }
-    throw new ScanError(502, 'Document analysis failed. Please try again.');
-  }
+        { signal: deadline, timeout: ANALYSIS_DEADLINE_MS },
+      );
 
-  const finishReason = response.candidates?.[0]?.finishReason;
-  if (response.promptFeedback?.blockReason || (finishReason && BLOCKED_FINISH_REASONS.has(finishReason))) {
-    console.warn('[Documents] Gemini blocked the request:', response.promptFeedback?.blockReason ?? finishReason);
-    throw new ScanError(422, 'This image could not be analyzed. Please photograph only the document.');
-  }
-  if (finishReason === FinishReason.MAX_TOKENS) {
-    throw new ScanError(422, 'This document is too long for one scan. Please photograph one page at a time.');
-  }
+      const choice = response.choices?.[0];
+      if (choice?.finish_reason === 'content_filter') {
+        throw new ScanError(422, 'This image could not be analyzed. Please photograph only the document.');
+      }
+      if (choice?.finish_reason === 'length') {
+        // Cut off mid-JSON (a reasoning model can spend the budget thinking).
+        throw new ModelOutputError('The model ran out of room before finishing');
+      }
+      return parseModelJson(choice?.message?.content);
+    },
+    deadline,
+  );
+  return { raw: served.value, model: served.model };
+}
 
-  try {
-    return obj(JSON.parse(response.text ?? ''));
-  } catch {
-    console.error('[Documents] Model returned non-JSON content:', response.text?.slice(0, 500));
-    throw new ScanError(502, 'Document analysis failed. Please try again.');
+/** A failed model call as the HTTP answer the app can show. */
+function scanErrorFor(err: unknown, deadline: AbortSignal): ScanError {
+  if (err instanceof ScanError) return err;
+  if (deadline.aborted) {
+    return new ScanError(504, 'Checking this document took too long. Please try again with a clear photo of just the document.');
   }
+  const status = statusOf(err);
+  if (status === 429) return new ScanError(429, 'The document scanner is busy. Please try again in a minute.');
+  if (status === 401) {
+    console.error('[Documents] OpenRouter rejected the API key (401)');
+    return new ScanError(503, 'Document scanner is not configured on the server.');
+  }
+  console.error('[Documents] Model request failed:', err instanceof Error ? err.message : err);
+  return new ScanError(502, 'Document analysis failed. Please try again.');
 }
 
 /**
  * POST /api/documents/scan  (also /analyze, its previous name)
  * Body: { filesBase64?: string[], imageBase64?: string, language?: "bn" | "en" | "zh",
  *         save?: boolean }
- * Contracts, visas and any other paper: one Gemini call reads, translates and audits it.
- * Several photos are read as consecutive pages of one document; a PDF is read whole.
+ * Contracts, visas and any other paper: one vision-model call reads, translates and audits it.
+ * Several photos are read as consecutive pages of one document.
  * Header: Authorization: Bearer <Supabase access token>.
  * `save: false` returns the audit without storing it, so the app can show it first and
  * let the worker choose: POST /api/documents/save keeps it, doing nothing drops it.
@@ -632,22 +673,23 @@ router.post(['/scan', '/analyze'], async (req: Request, res: Response) => {
   const language = parseLanguage(req.body?.language);
   if (!language) return res.status(400).json({ error: 'language must be one of: bn, en, zh' });
 
-  const ai = getGeminiClient();
-  if (!ai) {
-    console.error('[Documents] GEMINI_API_KEY is not set');
+  if (!getOpenRouter()) {
+    console.error('[Documents] OPENROUTER_API_KEY is not set');
     return res.status(503).json({ error: 'Document scanner is not configured on the server.' });
   }
 
-  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const models = modelList(process.env.DOCUMENT_MODELS || process.env.DOCUMENT_MODEL, DEFAULT_DOCUMENT_MODELS);
+  const deadline = AbortSignal.timeout(ANALYSIS_DEADLINE_MS);
   let raw: Record<string, any>;
+  let model: string;
   try {
-    raw = await auditWithGemini(ai, model, files, language);
+    ({ raw, model } = await auditWithModel(models, files, language, deadline));
   } catch (err) {
-    if (err instanceof ScanError) return res.status(err.status).json({ error: err.message });
-    throw err;
+    const failure = scanErrorFor(err, deadline);
+    return res.status(failure.status).json({ error: failure.message });
   }
 
-  const analysis: Analysis = { ...normalizeAnalysis(raw, language), source_engine: 'Gemini' };
+  const analysis: Analysis = { ...normalizeAnalysis(raw, language), source_engine: 'OpenRouter AI' };
   const imageSha256 = scanHash(files);
   const documentId =
     userId && req.body?.save !== false
@@ -662,13 +704,14 @@ router.post(['/scan', '/analyze'], async (req: Request, res: Response) => {
     pages: files.length,
     image_sha256: imageSha256,
     model,
+    analysis_token: signAnalysis(userId, language, analysis),
   });
 });
 
 /**
  * POST /api/documents/save
- * Body: { analysis: <the analysis from /scan or /mrz>, language?: "bn" | "en" | "zh",
- *         image_sha256?: string, model?: string }
+ * Body: { analysis: <the analysis from /scan or /mrz>, analysis_token: <the token that came
+ *         with it>, language?: "bn" | "en" | "zh", image_sha256?: string, model?: string }
  * Keeps a scan the worker chose to save. The analysis is re-normalized here, so the
  * hard rules (salary floor, Tip Shoi => DO_NOT_SIGN) hold for whatever is stored.
  */
@@ -685,9 +728,23 @@ router.post('/save', async (req: Request, res: Response) => {
   if (userId === 'invalid') return res.status(401).json({ error: 'Invalid or expired session' });
   if (!userId) return res.status(401).json({ error: 'Your document vault is unavailable. Please try again.' });
 
+  // Only a result this server produced, for this user and language, within the
+  // last half hour, may be stored. (The analysis is checked exactly as received,
+  // before it is normalized.)
+  const check = verifyAnalysis(req.body?.analysis_token, userId, language, raw);
+  if (check === 'unavailable') {
+    return res.status(503).json({ error: 'Saving is not configured on the server.' });
+  }
+  if (check === 'expired') {
+    return res.status(409).json({ error: 'This result is too old to save. Please scan the document again.' });
+  }
+  if (check === 'bad') {
+    return res.status(400).json({ error: 'This result cannot be verified. Please scan the document again.' });
+  }
+
   const analysis: Analysis = {
     ...normalizeAnalysis(raw, language),
-    source_engine: pick(SOURCE_ENGINES, raw.source_engine, 'Gemini'),
+    source_engine: pick(SOURCE_ENGINES, raw.source_engine, 'OpenRouter AI'),
   };
   const documentId = await saveDocument({
     userId,
@@ -730,7 +787,13 @@ router.post('/mrz', async (req: Request, res: Response) => {
       ? await saveDocument({ userId, language, imageSha256: null, model: null, analysis })
       : null;
 
-  res.json({ analysis, report: buildReport(analysis), document_id: documentId, saved: documentId !== null });
+  res.json({
+    analysis,
+    report: buildReport(analysis),
+    document_id: documentId,
+    saved: documentId !== null,
+    analysis_token: userId ? signAnalysis(userId, language, analysis) : null,
+  });
 });
 
 // Body-parser failures for this router: say what went wrong instead of a generic 500.

@@ -77,7 +77,7 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
         title: 'WPS Payroll Card',
         providerName: 'Wage Protection System (Al Rajhi)',
         cardNumberMasked: '•••• 8420',
-        balance: 98420.12,
+        balance: 50000.00,
         currency: 'BDT',
         expiryDate: '08/29',
         cardType: CardType.wpsPayroll,
@@ -89,7 +89,7 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
         title: 'Probashi Expatriate Account',
         providerName: 'Probashi Kallyan Bank',
         cardNumberMasked: '•••• 1947',
-        balance: 145000.00,
+        balance: 25000.00,
         currency: 'BDT',
         expiryDate: '12/28',
         cardType: CardType.probashiMultiCurrency,
@@ -101,7 +101,7 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
         title: 'Probashi Global Visa',
         providerName: 'Visa • International',
         cardNumberMasked: '•••• 4242',
-        balance: 24850.50,
+        balance: 10000.00,
         currency: 'BDT',
         expiryDate: '03/30',
         cardType: CardType.internationalVisa,
@@ -186,9 +186,8 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
   List<BeneficiaryModel> _withSavedBeneficiaries(
     List<BeneficiaryModel> loaded,
   ) {
-    bool alreadyListed(BeneficiaryModel b) => loaded.any(
-          (l) => l.id == b.id || l.phoneOrAccount == b.phoneOrAccount,
-        );
+    bool alreadyListed(BeneficiaryModel b) =>
+        loaded.any((l) => l.id == b.id || l.phoneOrAccount == b.phoneOrAccount);
     final added = PaymentLocalStore.savedBeneficiaries
         .where((b) => !alreadyListed(b))
         .toList();
@@ -485,30 +484,14 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   // ---------------------------------------------------------------------------
-  // Card-to-card transfer. Stripe has no card-to-card primitive, so the move is
-  // charged as a USD Checkout session and the balances follow once it is paid.
+  // Card-to-card transfer. Each card is its own ledger wallet, so a swap is one
+  // atomic move on the server (the internal_transfer RPC): no gateway, no fee.
   // ---------------------------------------------------------------------------
 
-  /// Phase 1 — opens a Checkout session for the move and returns its payload,
-  /// which carries the `checkoutUrl` the caller opens in the browser.
-  Future<Map<String, dynamic>> startCardTransfer({
-    required String fromCardId,
-    required String toCardId,
-    required double amountInBdt,
-  }) {
-    return _repository.executeCardTransfer(
-      fromCardId: fromCardId,
-      toCardId: toCardId,
-      amountBdt: amountInBdt,
-      vatOnCommission: CurrencyModel.vatOnCommission(amountInBdt),
-      usdAmount: CurrencyModel.usd.convertFromBdt(
-        amountInBdt + CurrencyModel.vatOnCommission(amountInBdt),
-      ),
-    );
-  }
-
-  /// Phase 3 — moves the balances once Stripe reports the session paid.
-  Future<bool> settleCardTransfer({
+  /// Moves [amountInBdt] from one of the person's cards to another. Returns
+  /// null on success, or a message fit to show when it was refused (not enough
+  /// balance, offline, signed out).
+  Future<String?> transferBetweenCards({
     required String fromCardId,
     required String toCardId,
     required double amountInBdt,
@@ -519,16 +502,18 @@ class PaymentController extends ChangeNotifier with WidgetsBindingObserver {
         toCardId: toCardId,
         amount: amountInBdt,
       );
+      if (!success) return 'That transfer could not be completed.';
 
-      if (success) {
-        _cards = await _repository.getCards();
-        _transactions = await _repository.getTransactions();
-        notifyListeners();
-      }
-      return success;
+      _cards = await _repository.getCards();
+      _transactions = await _repository.getTransactions();
+      notifyListeners();
+      return null;
     } catch (e) {
       debugPrint('Error in card swap: $e');
-      return false;
+      final text = e.toString();
+      return text.startsWith('Exception: ')
+          ? text.substring('Exception: '.length)
+          : text;
     }
   }
 }

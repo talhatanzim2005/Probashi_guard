@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { resolveUserId } from '../supabaseUser.js';
+import { isTestPhone, TEST_PHONE_POOL_SIZE } from '../testPhones.js';
 
 const router = Router();
 
@@ -99,6 +100,15 @@ router.post('/bind-phone', async (req: Request, res: Response) => {
 
   // 3. Bind it. bind_verified_phone is granted to service_role alone, so this
   // is the only path that can set phone_verified_at.
+  //
+  // A real number stays strictly one account: a second account is refused with
+  // 23505 ("already verified"). A number listed in FIREBASE_TEST_PHONES is the
+  // same string for every tester, so it is bound as SHARED instead: up to
+  // TEST_PHONE_POOL_SIZE accounts hold it at once, and past that the database
+  // releases the oldest holder. That decision is made here, from the env list,
+  // and enforced there, under a lock, so two simultaneous verifications cannot
+  // overfill the pool. (testPhones.ts: never in production.)
+  const shared = isTestPhone(phone);
   try {
     const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/bind_verified_phone`, {
       method: 'POST',
@@ -107,7 +117,12 @@ router.post('/bind-phone', async (req: Request, res: Response) => {
         Authorization: `Bearer ${serviceRoleKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ p_user_id: userId, p_phone: phone }),
+      body: JSON.stringify({
+        p_user_id: userId,
+        p_phone: phone,
+        p_shared: shared,
+        p_shared_cap: TEST_PHONE_POOL_SIZE,
+      }),
     });
 
     const body = await rpcRes.text();

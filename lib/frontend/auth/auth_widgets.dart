@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,7 +29,9 @@ void showAuthMessage(
     ..showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? AppColors.crimsonRed : AppColors.emeraldGreen,
+        backgroundColor: isError
+            ? AppColors.crimsonRed
+            : AppColors.emeraldGreen,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -95,9 +98,20 @@ class AuthHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final topInset = MediaQuery.of(context).padding.top;
-    final height = compact
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    var height = compact
         ? (size.height * 0.30).clamp(210.0, 260.0)
         : (size.height * 0.38).clamp(240.0, 320.0);
+    // With the keyboard up, the field being typed in needs the room more than
+    // the logo does: on a small phone the full band would leave the form a
+    // sliver. The brand block below scales down to fit the shorter band.
+    if (keyboard > 0) {
+      final shortBand = math.max(
+        (size.height - keyboard) * 0.34,
+        topInset + 96,
+      );
+      height = math.min(height, shortBand);
+    }
     final logoSize = compact ? 72.0 : 86.0;
 
     return SizedBox(
@@ -107,66 +121,63 @@ class AuthHeader extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           // Subtle ambient background circles
-          Positioned(
-            top: -50,
-            right: -30,
-            child: _circle(220, 0.05),
-          ),
-          Positioned(
-            bottom: 20,
-            left: -40,
-            child: _circle(160, 0.04),
-          ),
+          Positioned(top: -50, right: -30, child: _circle(220, 0.05)),
+          Positioned(bottom: 20, left: -40, child: _circle(160, 0.04)),
           Padding(
             padding: EdgeInsets.only(top: topInset),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: logoSize,
-                  height: logoSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFFF0EEE9),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
+            // The band is a fixed height, so large system text or a raised
+            // keyboard shrinks the brand block instead of overflowing it.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: logoSize,
+                    height: logoSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFF0EEE9),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Image.asset(
+                        'assets/images/1000021944.png',
+                        fit: BoxFit.contain,
                       ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Image.asset(
-                      'assets/images/1000021944.png',
-                      fit: BoxFit.contain,
                     ),
                   ),
-                ),
-                SizedBox(height: compact ? 10 : 14),
-                Text(
-                  'Probashi Guard',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: compact ? 22 : 26,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
+                  SizedBox(height: compact ? 10 : 14),
+                  Text(
+                    'Probashi Guard',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: compact ? 22 : 26,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'VERIFY  •  PROTECT  •  SEND',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 2.0,
+                  const SizedBox(height: 6),
+                  Text(
+                    'VERIFY  •  PROTECT  •  SEND',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 2.0,
+                    ),
                   ),
-                ),
-                SizedBox(height: compact ? 20 : 28),
-              ],
+                  SizedBox(height: compact ? 20 : 28),
+                ],
+              ),
             ),
           ),
           if (showBack)
@@ -182,7 +193,10 @@ class AuthHeader extends StatelessWidget {
           Positioned(
             top: topInset + 12,
             right: 16,
-            child: const LanguageToggleSwitch(onDarkSurface: true, compact: true),
+            child: const LanguageToggleSwitch(
+              onDarkSurface: true,
+              compact: true,
+            ),
           ),
         ],
       ),
@@ -241,8 +255,10 @@ class AuthScaffold extends StatelessWidget {
                   ],
                 ),
                 child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 28,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: children,
@@ -365,8 +381,9 @@ class _AuthTextFieldState extends State<AuthTextField> {
                       size: 20,
                       color: iconColor,
                     ),
-                    tooltip:
-                        _obscured ? s.authShowPassword : s.authHidePassword,
+                    tooltip: _obscured
+                        ? s.authShowPassword
+                        : s.authHidePassword,
                     onPressed: () => setState(() => _obscured = !_obscured),
                   )
                 : null,

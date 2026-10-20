@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import stripeClient from '../stripeClient.js';
+import { requireAuth } from '../supabaseUser.js';
 
 const router = Router();
 
@@ -7,7 +8,7 @@ const router = Router();
  * POST /api/connect/create-account
  * Create a V2 Core connected account where platform manages pricing and fee collection.
  */
-router.post('/create-account', async (req: Request, res: Response) => {
+router.post('/create-account', requireAuth, async (req: Request, res: Response) => {
   try {
     const { displayName, email, country } = req.body;
 
@@ -58,7 +59,7 @@ router.post('/create-account', async (req: Request, res: Response) => {
  * POST /api/connect/account-link
  * Generate an onboarding link for the V2 connected account.
  */
-router.post('/account-link', async (req: Request, res: Response) => {
+router.post('/account-link', requireAuth, async (req: Request, res: Response) => {
   try {
     const { accountId } = req.body;
     if (!accountId) {
@@ -91,7 +92,7 @@ router.post('/account-link', async (req: Request, res: Response) => {
  * GET /api/connect/account-status/:accountId
  * Dynamically retrieve real-time status directly from Stripe API.
  */
-router.get('/account-status/:accountId', async (req: Request, res: Response) => {
+router.get('/account-status/:accountId', requireAuth, async (req: Request, res: Response) => {
   try {
     const { accountId } = req.params;
     if (!accountId) {

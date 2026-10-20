@@ -68,9 +68,11 @@ class _DocumentDetailViewState extends State<DocumentDetailView> {
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
-        content: Text(ok
-            ? _savedToast[widget.language]!
-            : widget.saveError?.call() ?? _saveFailedToast[widget.language]!),
+        content: Text(
+          ok
+              ? _savedToast[widget.language]!
+              : widget.saveError?.call() ?? _saveFailedToast[widget.language]!,
+        ),
         backgroundColor: ok ? AppColors.emeraldGreen : AppColors.crimsonRed,
       ),
     );
@@ -80,10 +82,15 @@ class _DocumentDetailViewState extends State<DocumentDetailView> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        // Scrolls on a phone held sideways with large system text.
+        scrollable: true,
         backgroundColor: AppColors.cloudDancer,
         title: Text(
           _discardTitle[widget.language]!,
-          style: const TextStyle(color: AppColors.royalBlue, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            color: AppColors.royalBlue,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         content: Text(
           _discardBody[widget.language]!,
@@ -94,14 +101,20 @@ class _DocumentDetailViewState extends State<DocumentDetailView> {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               _keepReading[widget.language]!,
-              style: const TextStyle(color: AppColors.royalBlue, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                color: AppColors.royalBlue,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               _discardConfirm[widget.language]!,
-              style: const TextStyle(color: AppColors.crimsonRed, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                color: AppColors.crimsonRed,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -168,7 +181,10 @@ class _DocumentDetailViewState extends State<DocumentDetailView> {
               scannedAt: widget.scannedAt,
               pages: widget.pages,
             ),
-            _TranslationTab(analysis: widget.analysis, language: widget.language),
+            _TranslationTab(
+              analysis: widget.analysis,
+              language: widget.language,
+            ),
           ],
         ),
         bottomNavigationBar: _choicePending
@@ -203,8 +219,10 @@ const _discardTitle = {
 };
 
 const _discardBody = {
-  DocumentLanguage.bangla: 'এটি ভল্টে থাকবে না। আবার দেখতে চাইলে নথিটি আবার স্ক্যান করতে হবে।',
-  DocumentLanguage.english: 'It will not be kept in your vault. To see it again you will have to scan the document again.',
+  DocumentLanguage.bangla:
+      'এটি ভল্টে থাকবে না। আবার দেখতে চাইলে নথিটি আবার স্ক্যান করতে হবে।',
+  DocumentLanguage.english:
+      'It will not be kept in your vault. To see it again you will have to scan the document again.',
   DocumentLanguage.chinese: '它不会保存在保险库中。若要再次查看，需重新扫描该文件。',
 };
 
@@ -262,10 +280,20 @@ class _SaveChoiceBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        10,
+        16,
+        10 + MediaQuery.of(context).padding.bottom,
+      ),
       decoration: BoxDecoration(
         color: AppColors.cloudDancer,
-        border: Border(top: BorderSide(color: AppColors.royalBlue.withValues(alpha: 0.16), width: 1.2)),
+        border: Border(
+          top: BorderSide(
+            color: AppColors.royalBlue.withValues(alpha: 0.16),
+            width: 1.2,
+          ),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -283,7 +311,9 @@ class _SaveChoiceBar extends StatelessWidget {
                   onPressed: saving ? null : onDiscard,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.royalBlue,
-                    side: BorderSide(color: AppColors.royalBlue.withValues(alpha: 0.4)),
+                    side: BorderSide(
+                      color: AppColors.royalBlue.withValues(alpha: 0.4),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   child: Text(
@@ -305,7 +335,10 @@ class _SaveChoiceBar extends StatelessWidget {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.cloudDancer),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.cloudDancer,
+                          ),
                         )
                       : const Icon(Icons.save_rounded, size: 20),
                   label: Text(
@@ -345,7 +378,8 @@ class _OverviewTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = analysis;
     // Passports and visas rarely state pay or fees; show the terms only if something was found.
-    final hasTerms = a.salary.amount != null ||
+    final hasTerms =
+        a.salary.amount != null ||
         a.fees.isNotEmpty ||
         a.durationText.isNotEmpty ||
         a.cancellationText.isNotEmpty;
@@ -373,7 +407,9 @@ class _OverviewTab extends StatelessWidget {
             icon: Icons.receipt_long_rounded,
             title: 'Fees',
             risk: a.feesRisk,
-            value: a.fees.isEmpty ? 'No fees found' : a.fees.map(_formatFee).join('\n'),
+            value: a.fees.isEmpty
+                ? 'No fees found'
+                : a.fees.map(_formatFee).join('\n'),
             explanation: a.feesExplanation,
           ),
           _TermSection(
@@ -385,15 +421,23 @@ class _OverviewTab extends StatelessWidget {
             icon: Icons.gavel_rounded,
             title: 'Cancellation',
             risk: a.cancellationRisk,
-            value: a.cancellationText.isEmpty ? 'Not stated' : a.cancellationText,
+            value: a.cancellationText.isEmpty
+                ? 'Not stated'
+                : a.cancellationText,
             explanation: a.cancellationExplanation,
           ),
         ],
-        if (scannedAt != null) Text('Scanned ${_formatDate(scannedAt!)}', style: footnoteStyle),
-        if (pages > 1) Text('$pages pages checked together', style: footnoteStyle),
-        if (a.sourceEngine != null) Text('Read by ${a.sourceEngine}', style: footnoteStyle),
+        if (scannedAt != null)
+          Text('Scanned ${_formatDate(scannedAt!)}', style: footnoteStyle),
+        if (pages > 1)
+          Text('$pages pages checked together', style: footnoteStyle),
+        if (a.sourceEngine != null)
+          Text('Read by ${a.sourceEngine}', style: footnoteStyle),
         if (!saved && !choicePending)
-          const Text('This result was not saved to your document vault.', style: footnoteStyle),
+          const Text(
+            'This result was not saved to your document vault.',
+            style: footnoteStyle,
+          ),
       ],
     );
   }
@@ -403,7 +447,9 @@ class _OverviewTab extends StatelessWidget {
 
   static String _formatSalary(SalaryInfo s) {
     if (s.amount == null) return 'Not stated';
-    final period = s.period.isEmpty || s.period == 'unknown' ? '' : ' / ${s.period}';
+    final period = s.period.isEmpty || s.period == 'unknown'
+        ? ''
+        : ' / ${s.period}';
     final sar = s.monthlySarEquivalent != null && s.currency != 'SAR'
         ? ' (≈ SAR ${_formatAmount(s.monthlySarEquivalent!)} / month)'
         : '';
@@ -411,14 +457,29 @@ class _OverviewTab extends StatelessWidget {
   }
 
   static String _formatFee(FeeItem fee) {
-    final amount = fee.amount != null ? ' — ${_formatAmount(fee.amount!)} ${fee.currency ?? ''}' : '';
+    final amount = fee.amount != null
+        ? ' — ${_formatAmount(fee.amount!)} ${fee.currency ?? ''}'
+        : '';
     final payer = fee.paidBy == 'worker' ? ' (you pay)' : '';
     return '• ${fee.description}$amount$payer';
   }
 }
 
 String _formatDate(DateTime d) {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   String two(int n) => n.toString().padLeft(2, '0');
   return '${d.day} ${months[d.month - 1]} ${d.year}, ${two(d.hour)}:${two(d.minute)}';
 }
@@ -437,8 +498,14 @@ class _TranslationTab extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         children: [
           SelectableText(
-            analysis.fullTranslation.isEmpty ? 'No translation available.' : analysis.fullTranslation,
-            style: const TextStyle(color: AppColors.ink, fontSize: 15, height: 1.5),
+            analysis.fullTranslation.isEmpty
+                ? 'No translation available.'
+                : analysis.fullTranslation,
+            style: const TextStyle(
+              color: AppColors.ink,
+              fontSize: 15,
+              height: 1.5,
+            ),
           ),
         ],
       );
@@ -461,7 +528,8 @@ class _TranslationTab extends StatelessWidget {
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             itemCount: segments.length,
-            separatorBuilder: (_, _) => Divider(color: AppColors.royalBlue.withValues(alpha: 0.12)),
+            separatorBuilder: (_, _) =>
+                Divider(color: AppColors.royalBlue.withValues(alpha: 0.12)),
             itemBuilder: (_, i) => _SegmentRow(segment: segments[i]),
           ),
         ),
@@ -479,7 +547,11 @@ class _ColumnHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: const TextStyle(color: AppColors.royalBlue, fontSize: 13.5, fontWeight: FontWeight.w800),
+      style: const TextStyle(
+        color: AppColors.royalBlue,
+        fontSize: 13.5,
+        fontWeight: FontWeight.w800,
+      ),
     );
   }
 }
@@ -498,16 +570,25 @@ class _SegmentRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.crimsonRed.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.crimsonRed.withValues(alpha: 0.4)),
+          border: Border.all(
+            color: AppColors.crimsonRed.withValues(alpha: 0.4),
+          ),
         ),
         child: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: AppColors.crimsonRed, size: 18),
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: AppColors.crimsonRed,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 segment.translated.isEmpty ? 'Blank space' : segment.translated,
-                style: const TextStyle(color: AppColors.crimsonRed, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  color: AppColors.crimsonRed,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -521,7 +602,11 @@ class _SegmentRow extends StatelessWidget {
         Expanded(
           child: SelectableText(
             segment.original,
-            style: const TextStyle(color: AppColors.inkMuted, fontSize: 14, height: 1.45),
+            style: const TextStyle(
+              color: AppColors.inkMuted,
+              fontSize: 14,
+              height: 1.45,
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -564,7 +649,11 @@ class _VerdictCard extends StatelessWidget {
           Expanded(
             child: Text(
               verdict.label(language),
-              style: TextStyle(color: color, fontSize: 19, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: color,
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],
@@ -575,10 +664,13 @@ class _VerdictCard extends StatelessWidget {
 
 /// Palette color and icon for a verdict, shared with the vault list.
 (Color, IconData) verdictStyle(SigningVerdict verdict) => switch (verdict) {
-      SigningVerdict.safeToSign => (AppColors.emeraldGreen, Icons.verified_rounded),
-      SigningVerdict.proceedWithCaution => (AppColors.royalBlue, Icons.report_problem_rounded),
-      SigningVerdict.doNotSign => (AppColors.crimsonRed, Icons.block_rounded),
-    };
+  SigningVerdict.safeToSign => (AppColors.emeraldGreen, Icons.verified_rounded),
+  SigningVerdict.proceedWithCaution => (
+    AppColors.royalBlue,
+    Icons.report_problem_rounded,
+  ),
+  SigningVerdict.doNotSign => (AppColors.crimsonRed, Icons.block_rounded),
+};
 
 /// Holder details from a passport, BMET card or visa, plus what is visibly on it.
 class _IdentityCard extends StatelessWidget {
@@ -587,10 +679,10 @@ class _IdentityCard extends StatelessWidget {
   const _IdentityCard({required this.analysis});
 
   static String _visible(bool? present) => switch (present) {
-        true => 'Visible',
-        false => 'Not found',
-        null => 'Unclear',
-      };
+    true => 'Visible',
+    false => 'Not found',
+    null => 'Unclear',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -604,18 +696,22 @@ class _IdentityCard extends StatelessWidget {
       final present => _visible(present),
     };
     const labelStyle = TextStyle(color: AppColors.inkMuted, fontSize: 13.5);
-    const valueStyle = TextStyle(color: AppColors.ink, fontSize: 14.5, fontWeight: FontWeight.w700);
+    const valueStyle = TextStyle(
+      color: AppColors.ink,
+      fontSize: 14.5,
+      fontWeight: FontWeight.w700,
+    );
 
     Widget row(String label, String value) => Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 130, child: Text(label, style: labelStyle)),
-              Expanded(child: SelectableText(value, style: valueStyle)),
-            ],
-          ),
-        );
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 130, child: Text(label, style: labelStyle)),
+          Expanded(child: SelectableText(value, style: valueStyle)),
+        ],
+      ),
+    );
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -623,23 +719,35 @@ class _IdentityCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cloudDancer,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.royalBlue.withValues(alpha: 0.16), width: 1.2),
+        border: Border.all(
+          color: AppColors.royalBlue.withValues(alpha: 0.16),
+          width: 1.2,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(isVisa ? Icons.approval_rounded : Icons.badge_rounded, color: AppColors.royalBlue, size: 20),
+              Icon(
+                isVisa ? Icons.approval_rounded : Icons.badge_rounded,
+                color: AppColors.royalBlue,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 isVisa ? 'Visa details' : 'Identity details',
-                style: const TextStyle(color: AppColors.royalBlue, fontSize: 15.5, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  color: AppColors.royalBlue,
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          if (fields.isEmpty) const Text('No details could be read.', style: labelStyle),
+          if (fields.isEmpty)
+            const Text('No details could be read.', style: labelStyle),
           for (final (label, value) in fields) row(label, value),
           const Divider(height: 18),
           if (readOnDevice)
@@ -647,15 +755,21 @@ class _IdentityCard extends StatelessWidget {
           else ...[
             row('Signature', _visible(authenticity.signaturePresent)),
             row('Official stamp', stamp),
-            if (authenticity.stampText.isNotEmpty) row('Stamp text', authenticity.stampText),
+            if (authenticity.stampText.isNotEmpty)
+              row('Stamp text', authenticity.stampText),
           ],
-          if (authenticity.notes.isNotEmpty && !readOnDevice) Text(authenticity.notes, style: labelStyle),
+          if (authenticity.notes.isNotEmpty && !readOnDevice)
+            Text(authenticity.notes, style: labelStyle),
           const SizedBox(height: 4),
           Text(
             readOnDevice
                 ? 'A valid code shows the details were read correctly. It cannot prove the passport is genuine.'
                 : 'This checks only what is visible in the photo. It cannot prove the document is genuine.',
-            style: const TextStyle(color: AppColors.inkMuted, fontSize: 12, fontStyle: FontStyle.italic),
+            style: const TextStyle(
+              color: AppColors.inkMuted,
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ],
       ),
@@ -682,11 +796,19 @@ class _SummaryCard extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.short_text_rounded, color: AppColors.cloudDancer, size: 20),
+              Icon(
+                Icons.short_text_rounded,
+                color: AppColors.cloudDancer,
+                size: 20,
+              ),
               SizedBox(width: 6),
               Text(
                 'Summary',
-                style: TextStyle(color: AppColors.cloudDancer, fontSize: 15.5, fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  color: AppColors.cloudDancer,
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
@@ -696,7 +818,11 @@ class _SummaryCard extends StatelessWidget {
               padding: EdgeInsets.only(bottom: i == lines.length - 1 ? 0 : 8),
               child: Text(
                 '${i + 1}. ${lines[i]}',
-                style: const TextStyle(color: AppColors.cloudDancer, fontSize: 15, height: 1.45),
+                style: const TextStyle(
+                  color: AppColors.cloudDancer,
+                  fontSize: 15,
+                  height: 1.45,
+                ),
               ),
             ),
         ],
@@ -736,11 +862,18 @@ class _TermSectionState extends State<_TermSection> {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(16),
       side: BorderSide(
-        color: isHigh ? AppColors.crimsonRed.withValues(alpha: 0.5) : AppColors.royalBlue.withValues(alpha: 0.16),
+        color: isHigh
+            ? AppColors.crimsonRed.withValues(alpha: 0.5)
+            : AppColors.royalBlue.withValues(alpha: 0.16),
         width: 1.2,
       ),
     );
-    const valueStyle = TextStyle(color: AppColors.ink, fontSize: 15, fontWeight: FontWeight.w600, height: 1.4);
+    const valueStyle = TextStyle(
+      color: AppColors.ink,
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+      height: 1.4,
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -762,23 +895,37 @@ class _TermSectionState extends State<_TermSection> {
             Expanded(
               child: Text(
                 widget.title,
-                style: const TextStyle(color: AppColors.royalBlue, fontSize: 15.5, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  color: AppColors.royalBlue,
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-            if (risk != null && risk != RiskLevel.unknown) _RiskChip(risk: risk),
+            if (risk != null && risk != RiskLevel.unknown)
+              _RiskChip(risk: risk),
           ],
         ),
         // Preview while collapsed; the full value is in the body.
         subtitle: _expanded
             ? null
-            : Text(widget.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: valueStyle),
+            : Text(
+                widget.value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: valueStyle,
+              ),
         children: [
           Text(widget.value, style: valueStyle),
           if (widget.explanation.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               widget.explanation,
-              style: const TextStyle(color: AppColors.inkMuted, fontSize: 14, height: 1.4),
+              style: const TextStyle(
+                color: AppColors.inkMuted,
+                fontSize: 14,
+                height: 1.4,
+              ),
             ),
           ],
         ],
@@ -807,7 +954,11 @@ class _RiskChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

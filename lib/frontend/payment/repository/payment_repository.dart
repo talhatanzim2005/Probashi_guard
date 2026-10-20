@@ -38,17 +38,6 @@ abstract class PaymentRepository {
     String? connectedAccountId,
   });
 
-  /// Opens a card-to-card transfer with the gateway and returns the raw session
-  /// payload, including `checkoutUrl` and `sessionId`. The balances only move
-  /// once that session is paid, via [executeInterCardTransfer].
-  Future<Map<String, dynamic>> executeCardTransfer({
-    required String fromCardId,
-    required String toCardId,
-    required double amountBdt,
-    required double vatOnCommission,
-    required double usdAmount,
-  });
-
   /// Whether the Checkout session has actually been paid.
   Future<bool> verifyCheckoutSession(String sessionId);
 
@@ -66,6 +55,8 @@ abstract class PaymentRepository {
     required String stripeSessionId,
   });
 
+  /// Moves money between two of the person's own cards. Returns true when it
+  /// moved; throws an [Exception] carrying a readable reason when it was refused.
   Future<bool> executeInterCardTransfer({
     required String fromCardId,
     required String toCardId,

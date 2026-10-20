@@ -4,6 +4,8 @@ import app from '../server.js';
 import stripeClient from '../stripeClient.js';
 import http from 'node:http';
 
+const DEV_AUTH = { Authorization: 'Bearer mock-test-token' };
+
 let server: http.Server;
 let baseUrl: string;
 
@@ -31,7 +33,7 @@ test('GET /api/health returns ok', async () => {
 });
 
 test('GET /api/payment/cards returns cards', async () => {
-  const res = await fetch(`${baseUrl}/api/payment/cards`);
+  const res = await fetch(`${baseUrl}/api/payment/cards`, { headers: DEV_AUTH });
   assert.strictEqual(res.status, 200);
   const data = await res.json() as any;
   assert.ok(Array.isArray(data.cards));
@@ -39,7 +41,7 @@ test('GET /api/payment/cards returns cards', async () => {
 });
 
 test('GET /api/payment/beneficiaries returns beneficiaries', async () => {
-  const res = await fetch(`${baseUrl}/api/payment/beneficiaries`);
+  const res = await fetch(`${baseUrl}/api/payment/beneficiaries`, { headers: DEV_AUTH });
   assert.strictEqual(res.status, 200);
   const data = await res.json() as any;
   assert.ok(Array.isArray(data.beneficiaries));
@@ -90,7 +92,7 @@ test('POST /api/checkout/send-money refuses an unverified caller before charging
 test('POST /api/connect/create-account validation and response shape', async () => {
   const res = await fetch(`${baseUrl}/api/connect/create-account`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...DEV_AUTH },
     body: JSON.stringify({
       displayName: 'Test Partner',
       email: 'test@example.com',
@@ -160,75 +162,109 @@ test('POST /api/webhooks/stripe accepts a correctly signed event', async () => {
   assert.strictEqual(res.status, 200);
 });
 
-test('POST /api/checkout/card-transfer rejects a transfer to the same card', async () => {
-  const res = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fromCardId: 'card_wps', toCardId: 'card_wps', amountBdt: 5000 }),
-  });
-  assert.strictEqual(res.status, 400);
+
+test('locked routes refuse a caller with no session', async () => {
+  const cases: Array<[string, string]> = [
+    ['GET', '/api/payment/cards'],
+    ['GET', '/api/payment/transactions'],
+    ['POST', '/api/payment/transfer-cards'],
+    ['POST', '/api/products/create'],
+    ['POST', '/api/checkout/destination-charge'],
+    ['POST', '/api/checkout/card-transfer'],
+    ['GET', '/api/checkout/session-status/cs_test_aaaaaaaaaaaa'],
+    ['POST', '/api/connect/create-account'],
+  ];
+  for (const [method, path] of cases) {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: method === 'POST' ? '{}' : undefined,
+    });
+    // The removed routes 404; every other one must be 401. None may do work.
+    assert.ok(res.status === 401 || res.status === 404, `${method} ${path} -> ${res.status}`);
+    if (!path.includes('transfer')) assert.strictEqual(res.status, 401, `${method} ${path}`);
+  }
 });
 
-test('POST /api/checkout/card-transfer rejects a non-positive amount', async () => {
-  const res = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fromCardId: 'card_wps', toCardId: 'card_visa', amountBdt: 0 }),
+test('a made-up bearer token is rejected, not treated as the dev user', async () => {
+  const res = await fetch(`${baseUrl}/api/payment/cards`, {
+    headers: { Authorization: 'Bearer not-the-dev-token' },
   });
-  assert.strictEqual(res.status, 400);
+  assert.strictEqual(res.status, 401);
 });
 
-test('POST /api/checkout/card-transfer opens a USD Checkout session', async () => {
-  const res = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fromCardId: 'card_wps', toCardId: 'card_visa', amountBdt: 5000 }),
-  });
-  assert.strictEqual(res.status, 201);
-  const data = await res.json() as any;
-  assert.ok(data.checkoutUrl.startsWith('https://checkout.stripe.com/'));
-  assert.ok(data.sessionId.startsWith('cs_'));
-
-  // The sender typed BDT; Stripe must have been charged in USD.
-  const session = await stripeClient.checkout.sessions.retrieve(data.sessionId);
-  assert.strictEqual(session.currency, 'usd');
-  assert.strictEqual(session.amount_total, Math.round(data.usdAmount * 100));
-
-  // 0.01% VAT on commission, charged on top of the transfer.
-  assert.ok(Math.abs(data.vatOnCommission - 0.5) < 1e-6);
+test('product creation validates its input before touching Stripe', async () => {
+  for (const body of [{ amount: -5 }, { amount: 'abc' }, { amount: 10, currency: 'xyz' }]) {
+    const res = await fetch(`${baseUrl}/api/products/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...DEV_AUTH },
+      body: JSON.stringify(body),
+    });
+    assert.strictEqual(res.status, 400, JSON.stringify(body));
+  }
 });
 
-test('POST /api/checkout/card-transfer ignores a client-supplied amount and fee', async () => {
-  // The arbitrage this closes: post a real amountBdt but a token usdAmount, and
-  // the old code charged the token figure while the ledger recorded the real
-  // one. Both usdAmount and vatOnCommission are now derived server-side, so
-  // these values must have no effect at all.
-  const honest = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fromCardId: 'card_wps', toCardId: 'card_visa', amountBdt: 5000 }),
-  });
-  assert.strictEqual(honest.status, 201);
-  const honestData = await honest.json() as any;
+test('/success never reflects a script payload from session_id', async () => {
+  const payload = encodeURIComponent('"><script>alert(1)</script>');
+  const res = await fetch(`${baseUrl}/success?session_id=${payload}`);
+  assert.strictEqual(res.status, 200);
+  const html = await res.text();
+  assert.ok(!html.includes('<script>alert'));
+  assert.ok(!html.includes('alert(1)'));
 
-  const tampered = await fetch(`${baseUrl}/api/checkout/card-transfer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fromCardId: 'card_wps',
-      toCardId: 'card_visa',
-      amountBdt: 5000,
-      usdAmount: 0.5,        // "charge me 50 cents for a 5000 BDT move"
-      vatOnCommission: 0,    // "and waive the fee"
-    }),
-  });
-  assert.strictEqual(tampered.status, 201);
-  const tamperedData = await tampered.json() as any;
+  const ok = await fetch(`${baseUrl}/success?session_id=cs_test_a1B2c3D4e5`);
+  assert.ok((await ok.text()).includes('cs_test_a1B2c3D4'));
 
-  assert.strictEqual(tamperedData.usdAmount, honestData.usdAmount);
-  assert.strictEqual(tamperedData.vatOnCommission, honestData.vatOnCommission);
+  // ?session_id=a&session_id=b arrives as an array and used to crash .slice.
+  const arr = await fetch(`${baseUrl}/success?session_id=a&session_id=b`);
+  assert.strictEqual(arr.status, 200);
+});
 
-  // And confirm against Stripe itself, not just our response body.
-  const session = await stripeClient.checkout.sessions.retrieve(tamperedData.sessionId);
-  assert.strictEqual(session.amount_total, Math.round(honestData.usdAmount * 100));
+test('CORS answers a local dev origin but not a foreign one', async () => {
+  const local = await fetch(`${baseUrl}/api/health`, { headers: { Origin: 'http://localhost:5000' } });
+  assert.strictEqual(local.headers.get('access-control-allow-origin'), 'http://localhost:5000');
+  const evil = await fetch(`${baseUrl}/api/health`, { headers: { Origin: 'https://evil.example' } });
+  assert.strictEqual(evil.headers.get('access-control-allow-origin'), null);
+});
+
+test('the webhook credits nothing for a non-USD, unpaid or foreign session', async () => {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    console.log('skipped: STRIPE_WEBHOOK_SECRET not set');
+    return;
+  }
+  const base = {
+    id: 'cs_test_guard',
+    object: 'checkout.session',
+    amount_total: 10000,
+    payment_status: 'paid',
+    currency: 'usd',
+    metadata: { kind: 'remittance', payerUserId: '00000000-0000-0000-0000-000000000000', cardId: 'card_wps', amountBdt: '1195' },
+  };
+  const variants: Array<Record<string, unknown>> = [
+    { ...base, currency: 'bdt' },
+    { ...base, payment_status: 'unpaid' },
+    { ...base, metadata: { ...base.metadata, kind: undefined } },
+    { ...base, metadata: { ...base.metadata, cardId: 'card_unknown' } },
+    { ...base, amount_total: 50 }, // far below the 1195 BDT it claims
+  ];
+  const warn = console.error;
+  const errors: string[] = [];
+  console.error = (...a: unknown[]) => { errors.push(a.join(' ')); };
+  try {
+    for (const object of variants) {
+      const payload = JSON.stringify({ id: 'evt_guard', object: 'event', type: 'checkout.session.completed', data: { object } });
+      const header = stripeClient.webhooks.generateTestHeaderString({ payload, secret });
+      const res = await fetch(`${baseUrl}/api/webhooks/stripe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'stripe-signature': header },
+        body: payload,
+      });
+      assert.strictEqual(res.status, 200);
+    }
+  } finally {
+    console.error = warn;
+  }
+  // A credit attempt would have logged a Supabase failure or "no payerUserId".
+  assert.ok(!errors.some((e) => e.includes('settle_remittance failed')), errors.join('; '));
 });

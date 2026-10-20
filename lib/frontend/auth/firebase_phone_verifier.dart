@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -8,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../config/backend_config.dart';
 import 'phone_verifier.dart';
 
 /// The verifier to use when the caller has not supplied one.
@@ -52,7 +52,16 @@ class FirebasePhoneVerifier implements PhoneVerifier {
   /// Lets a resend skip Firebase's own re-send throttling.
   int? _resendToken;
 
-  /// See [_sendCodeDirect]. Debug builds only, unless a test says otherwise.
+  /// Whether this build may send REAL SMS messages, which cost money (and need
+  /// the Blaze plan). Off unless the app is built with
+  /// `--dart-define=ALLOW_REAL_SMS=true`. While it is off, every build, debug
+  /// or release, verifies through [_sendCodeDirect], which only Firebase's
+  /// console test numbers can pass: a real number is refused before any SMS is
+  /// queued. Go-live is therefore an explicit decision, not a side effect of
+  /// building in release mode.
+  static const bool allowRealSms = bool.fromEnvironment('ALLOW_REAL_SMS');
+
+  /// See [_sendCodeDirect]. On unless [allowRealSms], unless a test says otherwise.
   final bool _direct;
 
   /// Overrides the Firebase app's API key; tests pass one in.
@@ -67,20 +76,13 @@ class FirebasePhoneVerifier implements PhoneVerifier {
     String? baseUrl,
     bool? directForTestNumbers,
     String? apiKey,
-  })  : _firebaseAuthOverride = firebaseAuth,
-        _httpClient = httpClient ?? http.Client(),
-        baseUrl = baseUrl ?? _defaultBaseUrl,
-        _direct = directForTestNumbers ?? kDebugMode,
-        _apiKeyOverride = apiKey;
+  }) : _firebaseAuthOverride = firebaseAuth,
+       _httpClient = httpClient ?? http.Client(),
+       baseUrl = baseUrl ?? _defaultBaseUrl,
+       _direct = directForTestNumbers ?? !allowRealSms,
+       _apiKeyOverride = apiKey;
 
-  static String get _defaultBaseUrl {
-    if (kIsWeb) return 'http://localhost:3000';
-    try {
-      // 10.0.2.2 is the host PC as seen from the Android emulator only.
-      if (Platform.isAndroid) return 'http://10.0.2.2:3000';
-    } catch (_) {}
-    return 'http://localhost:3000';
-  }
+  static String get _defaultBaseUrl => BackendConfig.baseUrl;
 
   /// The browser equivalent of [_verificationId]: web has no
   /// `verifyPhoneNumber` (it throws UnimplementedError there) and hands back a
@@ -208,7 +210,8 @@ class FirebasePhoneVerifier implements PhoneVerifier {
       if (webConfirmation != null) {
         result = await webConfirmation.confirm(code);
       } else {
-        final credential = _autoCredential ??
+        final credential =
+            _autoCredential ??
             PhoneAuthProvider.credential(
               verificationId: verificationId!,
               smsCode: code,
@@ -217,8 +220,10 @@ class FirebasePhoneVerifier implements PhoneVerifier {
       }
       final token = await result.user?.getIdToken();
       if (token == null || token.isEmpty) {
-        throw const PhoneVerificationException(PhoneVerificationFailure.unknown,
-            'Firebase returned no ID token');
+        throw const PhoneVerificationException(
+          PhoneVerificationFailure.unknown,
+          'Firebase returned no ID token',
+        );
       }
       idToken = token;
     } on FirebaseAuthException catch (e) {
@@ -226,9 +231,11 @@ class FirebasePhoneVerifier implements PhoneVerifier {
     } finally {
       // Whatever happened, do not leave a Firebase session lying about: it is
       // not this app's identity and a stale one only causes confusion later.
-      unawaited(_firebaseAuth.signOut().catchError((Object e) {
-        debugPrint('[FirebasePhoneVerifier] Firebase sign-out failed: $e');
-      }));
+      unawaited(
+        _firebaseAuth.signOut().catchError((Object e) {
+          debugPrint('[FirebasePhoneVerifier] Firebase sign-out failed: $e');
+        }),
+      );
       _autoCredential = null;
     }
 
@@ -258,7 +265,7 @@ class FirebasePhoneVerifier implements PhoneVerifier {
   ///
   /// A real number is refused here (no valid reCAPTCHA token, and real SMS
   /// needs billing), so this route cannot send or skip a real verification.
-  /// Debug builds only: release builds go through the SDK.
+  /// It is the route for every build unless [allowRealSms] is set.
   Future<void> _sendCodeDirect(String e164) async {
     _directSessionInfo = null;
     final body = await _postIdentityToolkit('sendVerificationCode', {
@@ -322,8 +329,9 @@ class FirebasePhoneVerifier implements PhoneVerifier {
 
     if (response.statusCode != 200) {
       final error = body['error'];
-      final message =
-          error is Map ? (error['message']?.toString() ?? '') : response.body;
+      final message = error is Map
+          ? (error['message']?.toString() ?? '')
+          : response.body;
       throw _translateRest(message);
     }
     return body;

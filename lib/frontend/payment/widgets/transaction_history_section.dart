@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
+import '../../../widget/coming_soon.dart';
 import '../controllers/payment_controller.dart';
 import '../models/transaction_model.dart';
 
@@ -36,72 +37,83 @@ class TransactionHistorySection extends StatelessWidget {
         ],
       ),
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                s.transactionHistory,
-                style: const TextStyle(
-                  color: AppColors.royalBlue,
-                  fontSize: 16.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              GestureDetector(
-                onTap: onSeeAllTap,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 4,
-                    horizontal: 2,
-                  ),
+      // The ripples of the rows are drawn on this Material, above the fill.
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
                   child: Text(
-                    s.seeAll,
+                    s.transactionHistory,
                     style: const TextStyle(
                       color: AppColors.royalBlue,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          if (transactions.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24.0),
-              child: Center(
-                child: Text(
-                  s.noTransactionsYet,
-                  style: const TextStyle(
-                    color: AppColors.inkMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                const SizedBox(width: 8),
+                Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    onTap: onSeeAllTap,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 2,
+                      ),
+                      child: Text(
+                        s.seeAll,
+                        style: const TextStyle(
+                          color: AppColors.royalBlue,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: transactions.length > 5 ? 5 : transactions.length,
-              separatorBuilder: (context, index) => Divider(
-                color: AppColors.royalBlue.withValues(alpha: 0.08),
-                height: 20,
-              ),
-              itemBuilder: (context, index) {
-                final tx = transactions[index];
-                return _TransactionTile(tx: tx);
-              },
+              ],
             ),
-        ],
+            const SizedBox(height: 14),
+
+            if (transactions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24.0),
+                child: Center(
+                  child: Text(
+                    s.noTransactionsYet,
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: transactions.length > 5 ? 5 : transactions.length,
+                separatorBuilder: (context, index) => Divider(
+                  color: AppColors.royalBlue.withValues(alpha: 0.08),
+                  height: 20,
+                ),
+                itemBuilder: (context, index) {
+                  final tx = transactions[index];
+                  return _TransactionTile(tx: tx);
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -116,102 +128,110 @@ class _TransactionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isIncome = tx.isIncoming;
 
-    return Row(
-      children: [
-        // Category Icon Circle
-        _buildLeadingIcon(tx),
-        const SizedBox(width: 14),
+    return InkWell(
+      // The detail screen is not built yet; the tap still answers.
+      onTap: () => showComingSoon(
+        context,
+        AppStrings.of(context).featureTransactionDetails,
+      ),
+      borderRadius: BorderRadius.circular(12),
+      child: Row(
+        children: [
+          // Category Icon Circle
+          _buildLeadingIcon(tx),
+          const SizedBox(width: 14),
 
-        // Title & Subtitle Column
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                tx.title,
-                style: const TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.1,
+          // Title & Subtitle Column
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tx.title,
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.1,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  if (tx.isPending || tx.isFailed) ...[
-                    _StatusChip(isPending: tx.isPending),
-                    const SizedBox(width: 6),
-                  ],
-                  Expanded(
-                    child: Text(
-                      tx.subtitle,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.inkMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    if (tx.isPending || tx.isFailed) ...[
+                      _StatusChip(isPending: tx.isPending),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        tx.subtitle,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.inkMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Amount & Date/Type Column
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // A cross-border transfer has two legs — what the sender's bank was
+              // debited and what the recipient's bank was credited — so both are
+              // shown rather than only the figure the row is denominated in.
+              if (tx.hasBothLegs) ...[
+                Text(
+                  '-${_getCurrencySymbol(tx.debitedCurrency ?? tx.currency)}${_formatAmount(tx.debitedAmount!)}',
+                  style: TextStyle(
+                    color: tx.isPending ? AppColors.inkMuted : AppColors.ink,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
                   ),
-                ],
+                ),
+                Text(
+                  '+${_getCurrencySymbol(tx.creditedCurrency ?? 'BDT')}${_formatAmount(tx.creditedAmount!)}',
+                  style: TextStyle(
+                    color: tx.isPending
+                        ? AppColors.inkMuted
+                        : AppColors.emeraldGreen,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ] else
+                Text(
+                  '${isIncome ? '+' : '-'}${_getCurrencySymbol(tx.currency)}${_formatAmount(tx.amount)}',
+                  style: TextStyle(
+                    color: tx.isPending
+                        ? AppColors.inkMuted
+                        : (isIncome ? AppColors.emeraldGreen : AppColors.ink),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              const SizedBox(height: 2),
+              Text(
+                _formatDate(AppStrings.of(context), tx.timestamp),
+                style: const TextStyle(
+                  color: AppColors.inkMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
-        ),
-
-        // Amount & Date/Type Column
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // A cross-border transfer has two legs — what the sender's bank was
-            // debited and what the recipient's bank was credited — so both are
-            // shown rather than only the figure the row is denominated in.
-            if (tx.hasBothLegs) ...[
-              Text(
-                '-${_getCurrencySymbol(tx.debitedCurrency ?? tx.currency)}${_formatAmount(tx.debitedAmount!)}',
-                style: TextStyle(
-                  color: tx.isPending ? AppColors.inkMuted : AppColors.ink,
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              Text(
-                '+${_getCurrencySymbol(tx.creditedCurrency ?? 'BDT')}${_formatAmount(tx.creditedAmount!)}',
-                style: TextStyle(
-                  color: tx.isPending
-                      ? AppColors.inkMuted
-                      : AppColors.emeraldGreen,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                ),
-              ),
-            ] else
-              Text(
-                '${isIncome ? '+' : '-'}${_getCurrencySymbol(tx.currency)}${_formatAmount(tx.amount)}',
-                style: TextStyle(
-                  color: tx.isPending
-                      ? AppColors.inkMuted
-                      : (isIncome ? AppColors.emeraldGreen : AppColors.ink),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                ),
-              ),
-            const SizedBox(height: 2),
-            Text(
-              _formatDate(AppStrings.of(context), tx.timestamp),
-              style: const TextStyle(
-                color: AppColors.inkMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 

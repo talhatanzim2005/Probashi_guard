@@ -4,6 +4,7 @@ import '../../../theme/app_colors.dart';
 import '../models/beneficiary_model.dart';
 import '../models/country_model.dart';
 import '../utils/phone_search_helper.dart';
+import '../../../widget/ink_surface.dart';
 
 class SendContactStep extends StatefulWidget {
   final List<BeneficiaryModel> beneficiaries;
@@ -91,51 +92,49 @@ class _SendContactStepState extends State<SendContactStep> {
           child: Row(
             children: [
               // Country Dial Code Selector for new numbers
-              InkWell(
+              InkSurface(
                 onTap: _showCountryPickerSheet,
                 borderRadius: const BorderRadius.horizontal(
                   left: Radius.circular(16),
                 ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 12,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.royalBlue.withValues(alpha: 0.05),
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(15),
                   ),
-                  decoration: BoxDecoration(
-                    color: AppColors.royalBlue.withValues(alpha: 0.05),
-                    borderRadius: const BorderRadius.horizontal(
-                      left: Radius.circular(15),
-                    ),
-                    border: Border(
-                      right: BorderSide(
-                        color: AppColors.royalBlue.withValues(alpha: 0.12),
-                        width: 1,
-                      ),
+                  border: Border(
+                    right: BorderSide(
+                      color: AppColors.royalBlue.withValues(alpha: 0.12),
+                      width: 1,
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _selectedCountry.flag,
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _selectedCountry.dialCode,
-                        style: const TextStyle(
-                          color: AppColors.royalBlue,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const Icon(
-                        Icons.arrow_drop_down,
-                        size: 16,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _selectedCountry.flag,
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _selectedCountry.dialCode,
+                      style: const TextStyle(
                         color: AppColors.royalBlue,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ],
-                  ),
+                    ),
+                    const Icon(
+                      Icons.arrow_drop_down,
+                      size: 16,
+                      color: AppColors.royalBlue,
+                    ),
+                  ],
                 ),
               ),
 
@@ -417,21 +416,29 @@ class _SendContactStepState extends State<SendContactStep> {
       ),
       title: Row(
         children: [
-          Text(
-            item.name,
-            style: const TextStyle(
-              color: AppColors.royalBlue,
-              fontWeight: FontWeight.w700,
-              fontSize: 14.5,
+          Flexible(
+            child: Text(
+              item.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.royalBlue,
+                fontWeight: FontWeight.w700,
+                fontSize: 14.5,
+              ),
             ),
           ),
           const SizedBox(width: 6),
-          Text(
-            '(${item.countryName})',
-            style: TextStyle(
-              color: AppColors.royalBlue.withValues(alpha: 0.5),
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
+          Flexible(
+            child: Text(
+              '(${item.countryName})',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.royalBlue.withValues(alpha: 0.5),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -454,12 +461,16 @@ class _SendContactStepState extends State<SendContactStep> {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
-            item.phoneOrAccount,
-            style: TextStyle(
-              color: AppColors.royalBlue.withValues(alpha: 0.65),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              item.phoneOrAccount,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.royalBlue.withValues(alpha: 0.65),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

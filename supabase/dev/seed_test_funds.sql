@@ -60,11 +60,11 @@ BEGIN
 END
 $seed$;
 
--- Check the result: the sender should show the amount, the receiver 0.00,
--- both with a verified_at timestamp.
-SELECT u.email, p.phone, p.phone_verified_at AS verified_at, w.balance
+-- Check the result: the sender's card_wps shows the amount (the other two cards
+-- 0.00), the receiver is all zeros, both with a verified_at timestamp.
+SELECT u.email, p.phone, p.phone_verified_at AS verified_at, w.card_id, w.balance
 FROM auth.users u
 JOIN public.profiles p ON p.user_id = u.id
 JOIN public.wallets  w ON w.user_id = u.id
 WHERE u.email IN ('sender@example.com', 'receiver@example.com')
-ORDER BY w.balance DESC;
+ORDER BY u.email, w.card_id;

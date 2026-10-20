@@ -1,6 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Supabase and the document scanner backend. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- The document and passport scanner. Asked for at runtime when the Scan
+         tab opens. (The camera plugin declares it too; stated here so it is
+         visible.) No photo or storage permission is declared on purpose:
+         image_picker goes through the system Photo Picker, which needs none,
+         and declaring READ_MEDIA_IMAGES would need a Play Console
+         justification. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="Probashi Guard"
         android:name="${applicationName}"

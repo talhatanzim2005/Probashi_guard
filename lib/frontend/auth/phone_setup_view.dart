@@ -1,9 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
-import '../payment/widgets/amount_numpad.dart';
 import '../profile/controllers/profile_controller.dart';
 import 'auth_session.dart';
 import 'auth_widgets.dart';
@@ -18,12 +17,14 @@ import 'phone_verifier.dart';
 /// that has been verified. An unverified account can neither pay nor be paid,
 /// which is why this stands between signing in and the app.
 ///
-/// The number and the code are both on screen at once, typed on the keypad
-/// below them. Both fields are read-only, so only the digits 0-9 can ever be
-/// entered, on any platform, and the number is capped at its country's length
-/// (11 digits in Bangladesh). Verifying without having sent a code first sends
-/// one and checks it in a single step, which is how a Firebase test number
-/// and its fixed code are matched.
+/// The number and the code are both on screen at once, typed on the phone's
+/// own numeric keyboard. Both fields filter to the digits 0-9 (a Bangla
+/// keyboard's ০-৯ are converted), the number is capped at its country's length
+/// (11 digits in Bangladesh), and the code submits itself on its last digit.
+/// Verifying without having sent a code first sends one and checks it in a
+/// single step, which is how a Firebase test number and its fixed code are
+/// matched. Test numbers send no SMS, so they cost nothing; see
+/// [FirebasePhoneVerifier.allowRealSms] for what it takes to send a real one.
 ///
 /// It is skippable on purpose. Someone with no signal, or a number the SMS
 /// provider will not reach, still gets into the vault, the notices and the
@@ -49,9 +50,6 @@ class PhoneSetupView extends StatefulWidget {
   State<PhoneSetupView> createState() => _PhoneSetupViewState();
 }
 
-/// Which field the keypad is typing into.
-enum _Field { phone, code }
-
 class _PhoneSetupViewState extends State<PhoneSetupView> {
   /// SMS is slower to arrive than email, and providers rate-limit sends
   /// harder, so the wait before another send is offered is longer than the
@@ -64,7 +62,8 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
   final _codeController = TextEditingController();
 
   PhoneCountry _country = PhoneCountry.bangladesh;
-  _Field _active = _Field.phone;
+  final _phoneFocus = FocusNode();
+  final _codeFocus = FocusNode();
   bool _isBusy = false;
 
   /// The E.164 number the outstanding code was sent to; null before any send.
@@ -74,6 +73,8 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
   void dispose() {
     _phoneController.dispose();
     _codeController.dispose();
+    _phoneFocus.dispose();
+    _codeFocus.dispose();
     super.dispose();
   }
 
@@ -120,7 +121,7 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
   String? _validatedNumber(AppStrings s) {
     final e164 = _e164;
     if (e164 == null) {
-      setState(() => _active = _Field.phone);
+      _phoneFocus.requestFocus();
       showAuthMessage(
         context,
         s.authPhoneInvalidLength(_country.lengthLabel, _country.example),
@@ -129,16 +130,12 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
     return e164;
   }
 
-  void _onKey() {
+  /// Runs on every change to the number.
+  void _onNumberChanged(String _) {
     setState(() {});
-    if (_active == _Field.phone &&
-        _phoneController.text.length == _country.maxDigits &&
-        _e164 != null) {
-      // A complete number moves the keypad on to the code.
-      setState(() => _active = _Field.code);
-    } else if (_active == _Field.code &&
-        _codeController.text.length == authCodeLength) {
-      _verify();
+    if (_phoneController.text.length == _country.maxDigits && _e164 != null) {
+      // A complete number hands the keyboard on to the code.
+      _codeFocus.requestFocus();
     }
   }
 
@@ -146,12 +143,12 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
     final digits = _phoneController.text;
     setState(() {
       _country = country;
-      _active = _Field.phone;
       // Keep what was typed, but never more than the new country allows.
       if (digits.length > country.maxDigits) {
         _phoneController.text = digits.substring(0, country.maxDigits);
       }
     });
+    _phoneFocus.requestFocus();
   }
 
   Future<void> _sendCode() async {
@@ -166,9 +163,9 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
       if (!mounted) return;
       setState(() {
         _sentTo = e164;
-        _active = _Field.code;
         _codeController.clear();
       });
+      _codeFocus.requestFocus();
       showAuthMessage(context, s.authPhoneCodeSent, isError: false);
     } catch (e) {
       if (mounted) showAuthMessage(context, _failureMessage(s, e));
@@ -201,7 +198,7 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
 
     final code = _codeController.text;
     if (code.length != authCodeLength) {
-      setState(() => _active = _Field.code);
+      _codeFocus.requestFocus();
       showAuthMessage(context, s.authCodeIncomplete);
       return;
     }
@@ -229,10 +226,8 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _codeController.clear();
-        _active = _Field.code;
-      });
+      setState(_codeController.clear);
+      _codeFocus.requestFocus();
       showAuthMessage(context, _failureMessage(s, e));
     } finally {
       if (mounted) setState(() => _isBusy = false);
@@ -242,7 +237,6 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
   @override
   Widget build(BuildContext context) {
     final s = AppStrings.of(context);
-    final typingPhone = _active == _Field.phone;
 
     return AuthScaffold(
       compactHeader: true,
@@ -252,49 +246,31 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
         const SizedBox(height: 20),
         _countryPicker(s),
         const SizedBox(height: 16),
-        _digitField(
-          field: _Field.phone,
-          label: s.authPhoneLabel,
-          hint: _country.example,
-          controller: _phoneController,
-          prefix: _phonePrefix(),
-          helper: s.authPhoneDigitCount(
-            _phoneController.text.length,
-            _country.lengthLabel,
-          ),
-        ),
+        _numberField(s),
         const SizedBox(height: 12),
         _sendControl(s),
         const SizedBox(height: 16),
-        _digitField(
-          field: _Field.code,
-          label: s.authPhoneCodeLabel,
-          hint: s.authPhoneCodeHint,
-          controller: _codeController,
-          prefix: Icon(
-            Icons.lock_outline,
-            size: 20,
-            color: AppColors.ink.withValues(alpha: 0.45),
-          ),
-        ),
-        const SizedBox(height: 16),
+        _label(s.authPhoneCodeLabel),
+        const SizedBox(height: 8),
+        // Six boxes over one invisible field: the phone's numeric keyboard,
+        // digits only, the SMS code offered by the keyboard, and onCompleted
+        // fires on the sixth digit.
         IgnorePointer(
           ignoring: _isBusy,
-          child: AmountNumpad(
-            controller: typingPhone ? _phoneController : _codeController,
-            onChanged: _onKey,
-            maxDigits: typingPhone ? _country.maxDigits : authCodeLength,
-            replaceLeadingZero: false,
-            clearLabel: s.authPhoneClearLabel,
+          child: AuthCodeField(
+            controller: _codeController,
+            focusNode: _codeFocus,
+            autofocus: false,
+            onCompleted: (_) => _verify(),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         AuthPrimaryButton(
           label: s.authPhoneVerify,
           loading: _isBusy,
           onPressed: _verify,
         ),
-        if (kDebugMode) ...[
+        if (!FirebasePhoneVerifier.allowRealSms) ...[
           const SizedBox(height: 10),
           Text(
             s.authPhoneTestModeNote,
@@ -372,45 +348,43 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
     );
   }
 
-  /// A read-only field the keypad types into. Tapping it hands it the keypad.
-  Widget _digitField({
-    required _Field field,
-    required String label,
-    required String hint,
-    required TextEditingController controller,
-    required Widget prefix,
-    String? helper,
-  }) {
-    final isActive = _active == field;
-    final activeBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.royalBlue, width: 1.5),
-    );
-
+  /// The phone number, on the numeric keyboard. Only 0-9 get in, capped at the
+  /// country's length; it opens focused so the keyboard is already up.
+  Widget _numberField(AppStrings s) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label(label),
+        _label(s.authPhoneLabel),
         const SizedBox(height: 8),
         TextField(
-          controller: controller,
-          readOnly: true,
-          showCursor: isActive,
-          enableInteractiveSelection: false,
-          // No system keyboard, even on a phone: the keypad is the only input.
-          keyboardType: TextInputType.none,
-          onTap: _isBusy ? null : () => setState(() => _active = field),
+          controller: _phoneController,
+          focusNode: _phoneFocus,
+          autofocus: true,
+          readOnly: _isBusy,
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.next,
+          autofillHints: const [AutofillHints.telephoneNumberNational],
+          inputFormatters: [
+            const BanglaDigitsFormatter(),
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(_country.maxDigits),
+          ],
+          onChanged: _onNumberChanged,
+          onSubmitted: (_) => _codeFocus.requestFocus(),
           style: const TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.2,
             fontFeatures: [FontFeature.tabularFigures()],
           ),
-          decoration: authInputDecoration(hint: hint, prefixIcon: prefix)
-              .copyWith(
-            helperText: helper,
-            enabledBorder: isActive ? activeBorder : null,
-            focusedBorder: activeBorder,
+          decoration: authInputDecoration(
+            hint: _country.example,
+            prefixIcon: _phonePrefix(),
+          ).copyWith(
+            helperText: s.authPhoneDigitCount(
+              _phoneController.text.length,
+              _country.lengthLabel,
+            ),
           ),
         ),
       ],

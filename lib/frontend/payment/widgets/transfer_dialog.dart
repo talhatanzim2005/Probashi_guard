@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/payment_controller.dart';
-import '../models/currency_model.dart';
 import '../models/wallet_card_model.dart';
 import 'amount_numpad.dart';
-import 'awaiting_payment_dialog.dart';
 
 class TransferDialog extends StatefulWidget {
   final PaymentController controller;
@@ -72,13 +69,6 @@ class _TransferDialogState extends State<TransferDialog> {
 
   double get _amount => double.tryParse(_amountController.text.trim()) ?? 0.0;
 
-  double get _vatOnCommission => CurrencyModel.vatOnCommission(_amount);
-
-  double get _totalDebit => _amount + _vatOnCommission;
-
-  /// The move is charged through Stripe in USD, like every other transfer.
-  double get _usdSettlement => CurrencyModel.usd.convertFromBdt(_totalDebit);
-
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -89,8 +79,9 @@ class _TransferDialogState extends State<TransferDialog> {
     );
   }
 
-  /// Opens a Stripe Checkout session for the move, hands the person off to the
-  /// hosted page, and only shifts the balances once Stripe says it was paid.
+  /// Moves the money between the person's own cards. It is an internal ledger
+  /// move on the server: no payment gateway, no fee, and either both balances
+  /// change or neither does.
   Future<void> _handleTransfer() async {
     final s = AppStrings.of(context);
     final amount = _amount;
@@ -103,97 +94,36 @@ class _TransferDialogState extends State<TransferDialog> {
       _showError(s.sameCardTransfer);
       return;
     }
-    if (_fromCard.balance < _totalDebit) {
+    if (_fromCard.balance < amount) {
       _showError(s.insufficientSourceBalance);
       return;
     }
 
     setState(() => _isTransferring = true);
-
-    Map<String, dynamic> session;
-    try {
-      session = await widget.controller.startCardTransfer(
-        fromCardId: _fromCard.id,
-        toCardId: _toCard.id,
-        amountInBdt: amount,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isTransferring = false);
-      final text = e.toString();
-      _showError(
-        text.startsWith('Exception: ')
-            ? text.substring('Exception: '.length)
-            : text,
-      );
-      return;
-    }
-
-    final checkoutUrl = session['checkoutUrl']?.toString() ?? '';
-    final sessionId = session['sessionId']?.toString() ?? '';
-
-    if (checkoutUrl.isEmpty || !await _openCheckout(checkoutUrl)) {
-      if (!mounted) return;
-      setState(() => _isTransferring = false);
-      _showError(s.couldNotOpenCheckout);
-      return;
-    }
-
-    if (!mounted) return;
-
-    final paid =
-        await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => AwaitingPaymentDialog(
-            controller: widget.controller,
-            sessionId: sessionId,
-            checkoutUrl: checkoutUrl,
-            recipientName: _toCard.title,
-          ),
-        ) ??
-        false;
-
-    if (!paid) {
-      if (!mounted) return;
-      setState(() => _isTransferring = false);
-      _showError(s.paymentNotCompleted);
-      return;
-    }
-
-    final settled = await widget.controller.settleCardTransfer(
+    final error = await widget.controller.transferBetweenCards(
       fromCardId: _fromCard.id,
       toCardId: _toCard.id,
       amountInBdt: amount,
     );
-
     if (!mounted) return;
     setState(() => _isTransferring = false);
+
+    if (error != null) {
+      _showError(error);
+      return;
+    }
+
     Navigator.pop(context);
-
-    if (settled) {
-      HapticFeedback.mediumImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Successfully transferred ৳${amount.toStringAsFixed(2)} to ${_toCard.title}',
-          ),
-          backgroundColor: AppColors.emeraldGreen,
-          behavior: SnackBarBehavior.floating,
+    HapticFeedback.mediumImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Successfully transferred ৳${amount.toStringAsFixed(2)} to ${_toCard.title}',
         ),
-      );
-    }
-  }
-
-  Future<bool> _openCheckout(String checkoutUrl) async {
-    final uri = Uri.tryParse(checkoutUrl);
-    if (uri == null) return false;
-    try {
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (e) {
-      debugPrint('[TransferDialog] Could not open Stripe Checkout: $e');
-      return false;
-    }
+        backgroundColor: AppColors.emeraldGreen,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -215,14 +145,17 @@ class _TransferDialogState extends State<TransferDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  s.interCardTransfer,
-                  style: const TextStyle(
-                    color: AppColors.royalBlue,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
+                Expanded(
+                  child: Text(
+                    s.interCardTransfer,
+                    style: const TextStyle(
+                      color: AppColors.royalBlue,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(
                     Icons.close,
@@ -344,39 +277,6 @@ class _TransferDialogState extends State<TransferDialog> {
             ),
             const SizedBox(height: 14),
 
-            // Fee breakdown and the USD the gateway actually charges.
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.royalBlue.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppColors.royalBlue.withValues(alpha: 0.14),
-                ),
-              ),
-              child: Column(
-                children: [
-                  _buildFeeRow(
-                    '${s.vatOnCommission} (0.01%)',
-                    '৳${_vatOnCommission.toStringAsFixed(2)}',
-                  ),
-                  const SizedBox(height: 6),
-                  _buildFeeRow(
-                    s.totalDebited,
-                    '৳${_totalDebit.toStringAsFixed(2)}',
-                    emphasised: true,
-                  ),
-                  const SizedBox(height: 6),
-                  _buildFeeRow(
-                    s.chargedInUsd,
-                    '\$${_usdSettlement.toStringAsFixed(2)}',
-                    emphasised: true,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-
             // Transfer Submit Button
             ElevatedButton(
               onPressed: _isTransferring ? null : _handleTransfer,
@@ -409,30 +309,6 @@ class _TransferDialogState extends State<TransferDialog> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildFeeRow(String label, String value, {bool emphasised = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: AppColors.royalBlue.withValues(alpha: 0.7),
-            fontSize: 11.5,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: AppColors.royalBlue,
-            fontSize: emphasised ? 13 : 12,
-            fontWeight: emphasised ? FontWeight.w800 : FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 
@@ -478,6 +354,8 @@ class _TransferDialogState extends State<TransferDialog> {
                   value: c,
                   child: Text(
                     '${c.title} (৳${c.balance.toStringAsFixed(0)})',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.royalBlue,
                       fontSize: 13,

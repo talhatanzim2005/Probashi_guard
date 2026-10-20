@@ -15,11 +15,11 @@ void main() {
       controller = PaymentController.instance;
     });
 
-    test('Loads card balance 98420.12 directly into WPS Payroll card', () async {
+    test('Loads card balance 50000 directly into WPS Payroll card', () async {
       final cards = await repository.getCards();
       expect(cards.isNotEmpty, true);
       final wpsCard = cards.firstWhere((c) => c.id == 'card_wps');
-      expect(wpsCard.balance, 98420.12);
+      expect(wpsCard.balance, 50000.00);
       expect(wpsCard.currency, 'BDT');
     });
 
@@ -126,7 +126,7 @@ void main() {
 
     test('PaymentController unmasked balance formats correctly', () {
       final unmasked = controller.unmaskedActiveBalance;
-      expect(unmasked.contains('৳') || unmasked.contains('98,420.12'), true);
+      expect(unmasked.contains('৳') || unmasked.contains('50,000.00'), true);
     });
 
     test('getWalletHolderName returns neutral role title Probashi Expatriate Worker', () async {

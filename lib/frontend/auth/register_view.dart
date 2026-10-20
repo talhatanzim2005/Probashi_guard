@@ -1,8 +1,10 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
+import '../../widget/coming_soon.dart';
 import 'auth_session.dart';
 import 'auth_widgets.dart';
 import 'otp_verification_view.dart';
@@ -22,8 +24,15 @@ class _RegisterViewState extends State<RegisterView> {
   bool _agreedToTerms = false;
   bool _isLoading = false;
 
+  /// Taps on the "Terms and Privacy Policy" words. There is no policy page yet,
+  /// so the link says so instead of looking clickable and doing nothing.
+  late final TapGestureRecognizer _termsTap = TapGestureRecognizer()
+    ..onTap = () =>
+        showComingSoon(context, AppStrings.of(context).featureTermsPrivacy);
+
   @override
   void dispose() {
+    _termsTap.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -166,8 +175,8 @@ class _RegisterViewState extends State<RegisterView> {
     );
   }
 
-  // TODO(auth): link "Terms and Privacy Policy" to the real policy page once
-  // one exists. For now the whole row just toggles the box.
+  // TODO(auth): point the "Terms and Privacy Policy" link at the real policy
+  // page once one exists; until then it says "coming soon".
   Widget _termsCheckbox(AppStrings s) {
     return InkWell(
       onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
@@ -195,6 +204,7 @@ class _RegisterViewState extends State<RegisterView> {
                   TextSpan(text: s.authAgreePrefix),
                   TextSpan(
                     text: s.authTermsLink,
+                    recognizer: _termsTap,
                     style: const TextStyle(
                       color: AppColors.royalBlue,
                       fontWeight: FontWeight.w700,

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import stripeClient from '../stripeClient.js';
 import { triggerPaymentTasksSafely } from '../trigger/paymentTasks.js';
+import { SETTLEMENT_CURRENCY, USD_TO_BDT, isCardId, usdCentsForBdt } from '../pricing.js';
 
 const router = Router();
 
@@ -61,25 +62,55 @@ router.post('/stripe', async (req: Request, res: Response) => {
         const metadata = session.metadata || {};
         console.log(`[Webhooks] Checkout session completed: ${session.id}`);
 
-        // Card-to-card moves are settled by the app once it sees the session
-        // paid; there is no beneficiary to credit here.
-        if (metadata.kind === 'card_transfer') {
-          console.log(`[Webhooks] Card transfer session paid: ${session.id}`);
+        // Only sessions /api/checkout/send-money opened are remittances. Anything
+        // else on the account (a product checkout, a destination charge) is not
+        // ours to credit, whatever its amount.
+        if (metadata.kind !== 'remittance') {
+          console.log(`[Webhooks] Session ${session.id} is not a remittance; ignored`);
           break;
         }
 
-        const cardId = metadata.cardId || 'card_wps';
-        // Derive the amount from session.amount_total, which Stripe signed, and
-        // never from a client-supplied figure. That total is in USD now, so it
-        // is converted with the rate recorded on the session at creation time.
+        // 'completed' also fires for methods that settle later; only money that
+        // has actually arrived may be credited.
+        if (session.payment_status !== 'paid') {
+          console.log(`[Webhooks] Session ${session.id} is ${session.payment_status}; not credited yet`);
+          break;
+        }
+
+        // The conversion below assumes USD. A session in any other currency
+        // would be multiplied by the BDT rate as if it were dollars (BDT poisha
+        // read as cents inflates the credit ~119x), so refuse it outright.
+        if (String(session.currency || '').toLowerCase() !== SETTLEMENT_CURRENCY) {
+          console.error(`[Webhooks] Session ${session.id} is in '${session.currency}', not USD; NOT credited`);
+          break;
+        }
+
+        const cardId = metadata.cardId;
+        if (!isCardId(cardId)) {
+          console.error(`[Webhooks] Session ${session.id} names unknown card '${cardId}'; NOT credited`);
+          break;
+        }
         const usdCharged = session.amount_total ? session.amount_total / 100 : 0;
-        const usdToBdt = Number(metadata.usdToBdt) || 119.5;
+        // The rate is ours, not the session's: metadata is only as trustworthy
+        // as the code that wrote it, and a stale or edited value must not
+        // move the credit.
+        const usdToBdt = USD_TO_BDT;
         if (usdCharged <= 0) {
           // No signed total means nothing can be credited. The old fallback
           // here read metadata.amountBdt, which the client had supplied, so a
           // zero-total session could book an arbitrary balance.
           console.error(
             `[Webhooks] Session ${session.id} has no amount_total; nothing credited`
+          );
+          break;
+        }
+        // The price was fixed from metadata.amountBdt when the session was
+        // opened. Re-deriving it here proves what was charged matches what is
+        // about to be credited; a session priced for less is not.
+        const expectedCents = usdCentsForBdt(Number(metadata.amountBdt));
+        if (!Number.isFinite(expectedCents) || Math.abs(session.amount_total - expectedCents) > 1) {
+          console.error(
+            `[Webhooks] Session ${session.id} charged ${session.amount_total} cents but its metadata prices at ${expectedCents}; NOT credited`
           );
           break;
         }
@@ -116,10 +147,11 @@ router.post('/stripe', async (req: Request, res: Response) => {
           }
         );
 
-        // Credit the payer's wallet. deposit_to_wallet() is the only way a
-        // balance can go up: it locks the wallet row, snapshots
-        // balance_before / balance_after and writes the ledger entry, none of
-        // which a direct table write does.
+        // Book the remittance on the payer's chosen card. settle_remittance() is
+        // service-role only and idempotent on the Stripe session id: it records
+        // the money arriving and leaving to the recipient as two ledger legs,
+        // locking the wallet row and snapshotting balance_before / balance_after,
+        // none of which a direct table write does.
         //
         // What was here before wrote amount_bdt / balance_bdt straight onto
         // `transactions` and `wallets`. Those columns now exist only on the
@@ -144,7 +176,7 @@ router.post('/stripe', async (req: Request, res: Response) => {
           try {
             // The Stripe session id is the idempotency key, so the retries
             // Stripe sends for up to three days credit the wallet once.
-            const depositRes = await fetch(`${supabaseUrl}/rest/v1/rpc/deposit_to_wallet`, {
+            const depositRes = await fetch(`${supabaseUrl}/rest/v1/rpc/settle_remittance`, {
               method: 'POST',
               headers: {
                 'apikey': serviceRoleKey,
@@ -153,11 +185,13 @@ router.post('/stripe', async (req: Request, res: Response) => {
               },
               body: JSON.stringify({
                 p_user_id: payerUserId,
+                p_card_id: cardId,
+                p_session_id: session.id,
                 // From session.amount_total, which Stripe signed, never from a
                 // client-supplied figure. Rounded to paisa.
-                p_amount: Math.round(amountBdt * 100) / 100,
-                p_idempotency_key: session.id,
-                p_description: `Added from your ${sourceCurrency} card`,
+                p_amount_bdt: Math.round(amountBdt * 100) / 100,
+                p_recipient_name: recipientName,
+                p_recipient_phone: recipientPhone,
               }),
             });
 
@@ -175,7 +209,7 @@ router.post('/stripe', async (req: Request, res: Response) => {
                 );
               } else {
                 console.error(
-                  '[Webhooks] deposit_to_wallet failed:',
+                  '[Webhooks] settle_remittance failed:',
                   depositRes.status,
                   body
                 );

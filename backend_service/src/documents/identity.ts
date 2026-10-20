@@ -1,6 +1,6 @@
 // Identity documents. Passports are read on the phone from their machine-readable
 // zone (MRZ) and only the parsed fields reach the server; visas and BMET cards
-// are read by Gemini from a photo.
+// are read by the vision model from a photo.
 
 export const DOCUMENT_CATEGORIES = ['PASSPORT', 'VISA', 'CONTRACT'] as const;
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];

@@ -114,7 +114,8 @@ class _AwaitingPaymentDialogState extends State<AwaitingPaymentDialog>
     return Dialog(
       backgroundColor: AppColors.cloudDancer,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Padding(
+      // Taller than a phone held sideways, so it scrolls rather than overflow.
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,

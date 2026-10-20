@@ -296,6 +296,57 @@ void main() {
       );
     });
 
+    testWidgets('waits two minutes, not thirty seconds, before giving up', (tester) async {
+      expect(DocumentAnalysisRepository.analyzeTimeout, const Duration(seconds: 120));
+
+      // A slow connection: the answer arrives after 100 s, which the old 30 s
+      // limit would have cut off.
+      final slow = MockClient((_) async {
+        await Future<void>.delayed(const Duration(seconds: 100));
+        return http.Response.bytes(utf8.encode(jsonEncode(_sampleResponse(tipShoi: false))), 200);
+      });
+      final repo = DocumentAnalysisRepository(baseUrl: 'http://backend.test', client: slow);
+      DocumentAnalysisResult? result;
+      Object? error;
+      repo
+          .analyze(files: [Uint8List(4)], language: DocumentLanguage.english)
+          .then<void>((r) {
+        result = r;
+      }, onError: (Object e) {
+        error = e;
+      });
+
+      await tester.pump(const Duration(seconds: 31));
+      expect(result, isNull, reason: 'still waiting');
+      expect(error, isNull, reason: 'no timeout at 31 s');
+      await tester.pump(const Duration(seconds: 70));
+      expect(error, isNull);
+      expect(result, isNotNull);
+
+      // A request that never comes back is still cut off, at two minutes.
+      final dead = MockClient((_) async {
+        await Future<void>.delayed(const Duration(seconds: 130));
+        return http.Response('{}', 200);
+      });
+      final deadRepo = DocumentAnalysisRepository(baseUrl: 'http://backend.test', client: dead);
+      Object? deadError;
+      deadRepo
+          .analyze(files: [Uint8List(4)], language: DocumentLanguage.english)
+          .then<void>((_) {}, onError: (Object e) {
+        deadError = e;
+      });
+      await tester.pump(const Duration(seconds: 119));
+      expect(deadError, isNull);
+      await tester.pump(const Duration(seconds: 2));
+      expect(
+        deadError,
+        isA<DocumentAnalysisException>()
+            .having((e) => e.message, 'message', contains('more than 120 seconds'))
+            .having((e) => e.retryable, 'retryable', isTrue),
+      );
+      await tester.pump(const Duration(seconds: 15)); // let the stalled mock finish
+    });
+
     test('an unreachable backend names the URL it tried', () async {
       final client = MockClient((_) async => throw http.ClientException('Connection refused'));
       final repo = DocumentAnalysisRepository(baseUrl: 'http://10.0.2.2:3000', client: client);
