@@ -12,6 +12,7 @@ import 'widgets/quick_send_section.dart';
 import 'widgets/receive_bottom_sheet.dart';
 import 'widgets/transaction_history_section.dart';
 import 'widgets/transfer_dialog.dart';
+import '../../widget/coming_soon.dart';
 
 class PaymentView extends StatefulWidget {
   final PaymentController? controller;
@@ -46,6 +47,8 @@ class _PaymentViewState extends State<PaymentView> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      // Never climbs under the status bar, however tall the form gets.
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) => Container(
@@ -59,194 +62,201 @@ class _PaymentViewState extends State<PaymentView> {
             22,
             MediaQuery.of(ctx).viewInsets.bottom + 20,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.royalBlue.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                AppStrings.of(context).addBeneficiary,
-                style: const TextStyle(
-                  color: AppColors.royalBlue,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                AppStrings.of(context).addBeneficiarySubtitle,
-                style: TextStyle(
-                  color: AppColors.royalBlue.withValues(alpha: 0.6),
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Country / Nationality Selector
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.royalBlue.withValues(alpha: 0.18),
-                  ),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<CountryModel>(
-                    value: selectedCountry,
-                    isExpanded: true,
-                    icon: const Icon(
-                      Icons.arrow_drop_down,
-                      color: AppColors.royalBlue,
+          // With the keyboard up the form no longer fits above it, so it
+          // scrolls (the padding above keeps it clear of the keyboard).
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.royalBlue.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    items: CountryModel.supportedCountries.map((c) {
-                      return DropdownMenuItem<CountryModel>(
-                        value: c,
-                        child: Row(
-                          children: [
-                            Text(c.flag, style: const TextStyle(fontSize: 18)),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '${c.name} (${c.dialCode})',
-                                style: const TextStyle(
-                                  color: AppColors.royalBlue,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  AppStrings.of(context).addBeneficiary,
+                  style: const TextStyle(
+                    color: AppColors.royalBlue,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  AppStrings.of(context).addBeneficiarySubtitle,
+                  style: TextStyle(
+                    color: AppColors.royalBlue.withValues(alpha: 0.6),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Country / Nationality Selector
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.royalBlue.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<CountryModel>(
+                      value: selectedCountry,
+                      isExpanded: true,
+                      icon: const Icon(
+                        Icons.arrow_drop_down,
+                        color: AppColors.royalBlue,
+                      ),
+                      items: CountryModel.supportedCountries.map((c) {
+                        return DropdownMenuItem<CountryModel>(
+                          value: c,
+                          child: Row(
+                            children: [
+                              Text(
+                                c.flag,
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '${c.name} (${c.dialCode})',
+                                  style: const TextStyle(
+                                    color: AppColors.royalBlue,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (newC) {
+                        if (newC != null) {
+                          setSheetState(() {
+                            selectedCountry = newC;
+                            selectedProvider = newC.providers.first;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.of(context).recipientFullName,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.of(
+                      context,
+                    ).mobileNumberHint(selectedCountry.dialCode),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Dynamic Providers for Selected Country
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: selectedCountry.providers.map((provider) {
+                      final isSelected = selectedProvider == provider;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: Text(provider),
+                          selected: isSelected,
+                          selectedColor: AppColors.royalBlue,
+                          backgroundColor: Colors.white,
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? AppColors.cloudDancer
+                                : AppColors.royalBlue,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          onSelected: (val) {
+                            if (val) {
+                              setSheetState(() => selectedProvider = provider);
+                            }
+                          },
                         ),
                       );
                     }).toList(),
-                    onChanged: (newC) {
-                      if (newC != null) {
-                        setSheetState(() {
-                          selectedCountry = newC;
-                          selectedProvider = newC.providers.first;
-                        });
-                      }
-                    },
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    final name = nameController.text.trim();
+                    final phone = phoneController.text.trim();
+                    if (name.isEmpty || phone.isEmpty) return;
 
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  labelText: AppStrings.of(context).recipientFullName,
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: AppStrings.of(
-                    context,
-                  ).mobileNumberHint(selectedCountry.dialCode),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
+                    final fullPhone = phone.startsWith('+')
+                        ? phone
+                        : '${selectedCountry.dialCode} $phone';
 
-              // Dynamic Providers for Selected Country
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: selectedCountry.providers.map((provider) {
-                    final isSelected = selectedProvider == provider;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ChoiceChip(
-                        label: Text(provider),
-                        selected: isSelected,
-                        selectedColor: AppColors.royalBlue,
-                        backgroundColor: Colors.white,
-                        labelStyle: TextStyle(
-                          color: isSelected
-                              ? AppColors.cloudDancer
-                              : AppColors.royalBlue,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        onSelected: (val) {
-                          if (val) {
-                            setSheetState(() => selectedProvider = provider);
-                          }
-                        },
-                      ),
+                    final newBen = BeneficiaryModel(
+                      id: 'ben_${DateTime.now().millisecondsSinceEpoch}',
+                      name: name,
+                      phoneOrAccount: fullPhone,
+                      providerType: selectedProvider,
+                      avatarUrl: '',
+                      initials: name.isNotEmpty ? name[0].toUpperCase() : 'B',
+                      countryCode: selectedCountry.code,
+                      countryFlag: selectedCountry.flag,
+                      countryName: selectedCountry.name,
+                      countryDialCode: selectedCountry.dialCode,
+                      currency: selectedCountry.currencyCode,
+                      currencySymbol: selectedCountry.currencySymbol,
                     );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  final name = nameController.text.trim();
-                  final phone = phoneController.text.trim();
-                  if (name.isEmpty || phone.isEmpty) return;
 
-                  final fullPhone = phone.startsWith('+')
-                      ? phone
-                      : '${selectedCountry.dialCode} $phone';
-
-                  final newBen = BeneficiaryModel(
-                    id: 'ben_${DateTime.now().millisecondsSinceEpoch}',
-                    name: name,
-                    phoneOrAccount: fullPhone,
-                    providerType: selectedProvider,
-                    avatarUrl: '',
-                    initials: name.isNotEmpty ? name[0].toUpperCase() : 'B',
-                    countryCode: selectedCountry.code,
-                    countryFlag: selectedCountry.flag,
-                    countryName: selectedCountry.name,
-                    countryDialCode: selectedCountry.dialCode,
-                    currency: selectedCountry.currencyCode,
-                    currencySymbol: selectedCountry.currencySymbol,
-                  );
-
-                  _controller.addBeneficiary(newBen);
-                  Navigator.pop(ctx);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.royalBlue,
-                  foregroundColor: AppColors.cloudDancer,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    _controller.addBeneficiary(newBen);
+                    Navigator.pop(ctx);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.royalBlue,
+                    foregroundColor: AppColors.cloudDancer,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(
+                    AppStrings.of(context).saveBeneficiary,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
-                child: Text(
-                  AppStrings.of(context).saveBeneficiary,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -301,78 +311,91 @@ class _PaymentViewState extends State<PaymentView> {
                   ),
                   itemBuilder: (_, index) {
                     final tx = _controller.transactions[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: CircleAvatar(
-                        backgroundColor: tx.isIncoming
-                            ? AppColors.emeraldGreen.withValues(alpha: 0.12)
-                            : AppColors.royalBlue.withValues(alpha: 0.1),
-                        child: Icon(
-                          tx.isIncoming
-                              ? Icons.arrow_downward
-                              : Icons.arrow_upward,
-                          color: tx.isIncoming
-                              ? AppColors.emeraldGreen
-                              : AppColors.royalBlue,
-                          size: 18,
+                    return Material(
+                      // The sheet paints its own background, so the ripple needs a Material above it.
+                      type: MaterialType.transparency,
+                      child: ListTile(
+                        // The detail screen is not built yet. The sheet closes first: a message
+                        // shown behind it could not be seen.
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          showComingSoon(
+                            context,
+                            AppStrings.of(context).featureTransactionDetails,
+                          );
+                        },
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          backgroundColor: tx.isIncoming
+                              ? AppColors.emeraldGreen.withValues(alpha: 0.12)
+                              : AppColors.royalBlue.withValues(alpha: 0.1),
+                          child: Icon(
+                            tx.isIncoming
+                                ? Icons.arrow_downward
+                                : Icons.arrow_upward,
+                            color: tx.isIncoming
+                                ? AppColors.emeraldGreen
+                                : AppColors.royalBlue,
+                            size: 18,
+                          ),
                         ),
-                      ),
-                      title: Text(
-                        tx.title,
-                        style: const TextStyle(
-                          color: AppColors.ink,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                        title: Text(
+                          tx.title,
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                      subtitle: Text(
-                        '${tx.subtitle} • ${tx.timestamp.day}/${tx.timestamp.month}/${tx.timestamp.year}',
-                        style: const TextStyle(
-                          color: AppColors.inkMuted,
-                          fontSize: 12,
+                        subtitle: Text(
+                          '${tx.subtitle} • ${tx.timestamp.day}/${tx.timestamp.month}/${tx.timestamp.year}',
+                          style: const TextStyle(
+                            color: AppColors.inkMuted,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                      // Both legs of a cross-border transfer: what the sender's
-                      // bank was debited and what the recipient's was credited.
-                      trailing: tx.hasBothLegs
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  '-${tx.debitedCurrency ?? tx.currency} ${tx.debitedAmount!.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    color: tx.isPending
-                                        ? AppColors.inkMuted
-                                        : AppColors.ink,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13.5,
+                        // Both legs of a cross-border transfer: what the sender's
+                        // bank was debited and what the recipient's was credited.
+                        trailing: tx.hasBothLegs
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    '-${tx.debitedCurrency ?? tx.currency} ${tx.debitedAmount!.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      color: tx.isPending
+                                          ? AppColors.inkMuted
+                                          : AppColors.ink,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13.5,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  '+${tx.creditedCurrency ?? 'BDT'} ${tx.creditedAmount!.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    color: tx.isPending
-                                        ? AppColors.inkMuted
-                                        : AppColors.emeraldGreen,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12.5,
+                                  Text(
+                                    '+${tx.creditedCurrency ?? 'BDT'} ${tx.creditedAmount!.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      color: tx.isPending
+                                          ? AppColors.inkMuted
+                                          : AppColors.emeraldGreen,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12.5,
+                                    ),
                                   ),
+                                ],
+                              )
+                            : Text(
+                                '${tx.isIncoming ? '+' : '-'}${tx.currency} ${tx.amount.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  color: tx.isPending
+                                      ? AppColors.inkMuted
+                                      : (tx.isIncoming
+                                            ? AppColors.emeraldGreen
+                                            : AppColors.ink),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
                                 ),
-                              ],
-                            )
-                          : Text(
-                              '${tx.isIncoming ? '+' : '-'}${tx.currency} ${tx.amount.toStringAsFixed(2)}',
-                              style: TextStyle(
-                                color: tx.isPending
-                                    ? AppColors.inkMuted
-                                    : (tx.isIncoming
-                                          ? AppColors.emeraldGreen
-                                          : AppColors.ink),
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14,
                               ),
-                            ),
+                      ),
                     );
                   },
                 ),

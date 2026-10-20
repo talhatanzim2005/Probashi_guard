@@ -35,6 +35,10 @@ class ProfileController extends ChangeNotifier {
   String get userName => _userName;
   String get phoneNumber => _phoneNumber;
 
+  /// Whether [userName] is a name the person gave (at registration, or from
+  /// their Google / GitHub account) rather than the "Guest User" placeholder.
+  bool get hasName => _userName.trim().isNotEmpty && _userName != _defaultName;
+
   /// Language lives in [LanguageController] — it is app-wide and persisted —
   /// so these just read through to it and there is only one source of truth.
   String get languageCode => LanguageController.instance.languageCode;

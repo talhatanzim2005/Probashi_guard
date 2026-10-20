@@ -98,19 +98,23 @@ class _ActionPillState extends State<_ActionPill> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                widget.icon,
-                color: AppColors.royalBlue,
-                size: 16,
-              ),
+              Icon(widget.icon, color: AppColors.royalBlue, size: 16),
               const SizedBox(width: 7),
-              Text(
-                widget.label,
-                style: const TextStyle(
-                  color: AppColors.royalBlue,
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.1,
+              // The pill is a fixed height and shares the row, so a long
+              // translation or large system text shrinks to fit it.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: AppColors.royalBlue,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
                 ),
               ),
             ],

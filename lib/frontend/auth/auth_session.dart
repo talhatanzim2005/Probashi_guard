@@ -72,8 +72,10 @@ Future<void> goToApp(BuildContext context, {bool fade = false}) async {
   // Before the main screen loads, so it sees any rows that moved. Also run
   // from the splash, which retries a claim an earlier login left pending.
   await _AnonymousDataClaim.redeem();
-  _adoptAccountName();
+  // The profile check goes first: it makes sure an older account has its
+  // profile row, which the name lookup may need.
   final needsPhone = await _profileNeedsPhone();
+  await _adoptAccountName();
   unawaited(PaymentController.instance.reloadAfterSignIn());
   navigator.pushAndRemoveUntil(
     _appRoute(
@@ -86,10 +88,9 @@ Future<void> goToApp(BuildContext context, {bool fade = false}) async {
 
 /// Replaces everything with the main shell, once the phone number is settled.
 void enterAppShell(BuildContext context) {
-  Navigator.of(context).pushAndRemoveUntil(
-    _appRoute(const MainNavigationShell()),
-    (_) => false,
-  );
+  Navigator.of(
+    context,
+  ).pushAndRemoveUntil(_appRoute(const MainNavigationShell()), (_) => false);
 }
 
 Route<void> _appRoute(Widget page, {bool fade = false}) {
@@ -155,12 +156,33 @@ Future<void> signOut(BuildContext context) async {
 }
 
 /// The greeting and menu say "Guest User" until told otherwise. Registration
-/// stores `full_name`; Google and GitHub supply `full_name` or `name`.
-void _adoptAccountName() {
-  final metadata = _client?.auth.currentUser?.userMetadata;
-  final name = (metadata?['full_name'] ?? metadata?['name'])?.toString();
-  if (name != null && name.trim().isNotEmpty) {
-    ProfileController.instance.updateProfile(name: name.trim());
+/// stores `full_name`; Google and GitHub supply `full_name` or `name`. An
+/// account with neither (one made before names were collected) falls back to
+/// the name on its profile row, which was filled from the same place.
+///
+/// Never blocks a sign-in: with no name found the placeholder just stays.
+Future<void> _adoptAccountName() async {
+  final client = _client;
+  final user = client?.auth.currentUser;
+  if (client == null || user == null || user.isAnonymous) return;
+
+  final metadata = user.userMetadata;
+  var name = (metadata?['full_name'] ?? metadata?['name'])?.toString().trim();
+  if (name == null || name.isEmpty) {
+    try {
+      final row = await client
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', user.id)
+          .maybeSingle()
+          .timeout(_rpcTimeout);
+      name = (row?['full_name'] as String?)?.trim();
+    } catch (e) {
+      debugPrint('[auth] could not read the profile name: $e');
+    }
+  }
+  if (name != null && name.isNotEmpty) {
+    ProfileController.instance.updateProfile(name: name);
   }
 }
 

@@ -7,18 +7,44 @@ import checkoutRoutes from './routes/checkout.js';
 import paymentRoutes from './routes/payment.js';
 import documentRoutes from './routes/documents.js';
 import authRoutes from './routes/auth.js';
+import chatRoutes from './routes/chat.js';
+import { warmEmbedder } from './ai/embeddings.js';
+import { assertDevBypassSafe } from './supabaseUser.js';
 
 dotenv.config();
+assertDevBypassSafe();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Enable CORS for Flutter web / mobile clients and dev origin
-app.use(cors());
+// Browsers only: native apps send no Origin header and are never subject to
+// CORS. Allowed are the origins in CORS_ORIGINS (comma separated) and, outside
+// production, any localhost port (Flutter web is pinned to --web-port 5000).
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+const localhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (process.env.NODE_ENV !== 'production' && localhostOrigin.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+  })
+);
 
 // Mounted before the global parsers: it parses its own (image) bodies and turns
 // an oversized photo into a clear 413 instead of a generic error.
 app.use('/api/documents', documentRoutes);
+
+// Prohori, the AI assistant. Parses its own small JSON bodies, like the route above.
+app.use('/api/chat', chatRoutes);
 
 // Stripe signs the exact bytes it sent, so the webhook has to see the raw
 // buffer and never a re-serialised object. Mounting express.raw() here - ahead
@@ -51,7 +77,13 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // Post-checkout success landing page
 app.get('/success', (req: Request, res: Response) => {
-  const sessionId = req.query.session_id as string;
+  // Echoed into HTML and a link below, so only a Stripe-shaped id is accepted:
+  // anything else (an array, a script payload) is dropped, not escaped and kept.
+  const rawSessionId = req.query.session_id;
+  const sessionId =
+    typeof rawSessionId === 'string' && /^cs_[A-Za-z0-9_]{8,200}$/.test(rawSessionId)
+      ? rawSessionId
+      : '';
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -124,9 +156,10 @@ app.use((err: any, _req: Request, res: Response, _next: any) => {
 });
 
 // Start listening if run directly and not in test environment
-const isTestEnv = process.env.NODE_ENV === 'test' ||
-  process.argv.some(arg => arg.includes('test')) ||
-  process.execArgv.some(arg => arg.includes('test'));
+// The test script sets NODE_ENV=test. (This used to scan the command line for
+// the word "test", so a deploy folder named "latest" silently stopped the
+// server from listening.)
+const isTestEnv = process.env.NODE_ENV === 'test';
 
 if (!isTestEnv) {
   app.listen(PORT, () => {
@@ -139,7 +172,10 @@ if (!isTestEnv) {
     console.log(`- Destination Checkout: POST http://localhost:${PORT}/api/checkout/destination-charge`);
     console.log(`- Document Scanner: POST http://localhost:${PORT}/api/documents/scan`);
     console.log(`- Passport MRZ (on-device): POST http://localhost:${PORT}/api/documents/mrz`);
+    console.log(`- Prohori AI chat: POST http://localhost:${PORT}/api/chat`);
   });
+  // Load the embedding model now, so the first question is not the one that waits for it.
+  warmEmbedder();
 }
 
 export default app;

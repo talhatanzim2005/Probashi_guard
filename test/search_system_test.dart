@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:probashi_guard/frontend/crChecker/cr_checker_view.dart';
 import 'package:probashi_guard/frontend/home/app_search_view.dart';
 import 'package:probashi_guard/frontend/home/home_view.dart';
 import 'package:probashi_guard/frontend/home/models/search_action_item.dart';
@@ -42,7 +41,16 @@ void main() {
         subtitleEn: 'AI verification of job offer',
         subtitleBn: 'এআই দিয়ে চাকরির চুক্তি ও ভিসা যাচাই',
         icon: Icons.verified_user_outlined,
-        keywords: ['contract', 'fraud', 'visa', 'job', 'চুক্তি', 'ভিসা', 'chukti', 'dalal'],
+        keywords: [
+          'contract',
+          'fraud',
+          'visa',
+          'job',
+          'চুক্তি',
+          'ভিসা',
+          'chukti',
+          'dalal',
+        ],
         action: (_) {},
       );
 
@@ -66,9 +74,9 @@ void main() {
   });
 
   group('SearchServiceRegistry tests', () {
-    test('Registry contains all 7 primary app services', () {
+    test('Registry contains all 6 primary app services', () {
       final services = SearchServiceRegistry.getServices();
-      expect(services.length, 7);
+      expect(services.length, 6);
 
       final ids = services.map((s) => s.id).toSet();
       expect(
@@ -79,7 +87,6 @@ void main() {
           'send_remittance',
           'saved_documents',
           'official_notices',
-          'departure_checklist',
           'profile_settings',
         ]),
       );
@@ -99,167 +106,155 @@ void main() {
   });
 
   group('AppSearchView widget tests', () {
-    testWidgets('Renders search input, explore services, and filters dynamically',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Renders search input, explore services, and filters dynamically',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: AppSearchView(),
-        ),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(const MaterialApp(home: AppSearchView()));
+        await tester.pumpAndSettle();
 
-      // Verify search field exists with hint
-      expect(find.byType(TextField), findsOneWidget);
-      expect(find.text('Explore Services'), findsOneWidget);
-      expect(find.textContaining('Scan Passport', findRichText: true), findsOneWidget);
-      expect(find.textContaining('Check Contract Fraud', findRichText: true), findsOneWidget);
-      expect(find.textContaining('Send Remittance', findRichText: true), findsOneWidget);
+        // Verify search field exists with hint
+        expect(find.byType(TextField), findsOneWidget);
+        expect(find.text('Explore Services'), findsOneWidget);
+        expect(
+          find.textContaining('Scan Passport', findRichText: true),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Check Contract Fraud', findRichText: true),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Send Remittance', findRichText: true),
+          findsOneWidget,
+        );
 
-      // Type a query: "fraud"
-      await tester.enterText(find.byType(TextField), 'fraud');
-      await tester.pumpAndSettle();
+        // Type a query: "fraud"
+        await tester.enterText(find.byType(TextField), 'fraud');
+        await tester.pumpAndSettle();
 
-      // Only fraud checker matches
-      expect(find.textContaining('Check Contract Fraud', findRichText: true), findsOneWidget);
-      expect(find.textContaining('Scan Passport', findRichText: true), findsNothing);
+        // Only fraud checker matches
+        expect(
+          find.textContaining('Check Contract Fraud', findRichText: true),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Scan Passport', findRichText: true),
+          findsNothing,
+        );
 
-      // Clear search with X button
-      final clearBtn = find.byIcon(Icons.close_rounded);
-      expect(clearBtn, findsOneWidget);
-      await tester.tap(clearBtn);
-      await tester.pumpAndSettle();
+        // Clear search with X button
+        final clearBtn = find.byIcon(Icons.close_rounded);
+        expect(clearBtn, findsOneWidget);
+        await tester.tap(clearBtn);
+        await tester.pumpAndSettle();
 
-      // All services back
-      expect(find.textContaining('Scan Passport', findRichText: true), findsOneWidget);
-    });
+        // All services back
+        expect(
+          find.textContaining('Scan Passport', findRichText: true),
+          findsOneWidget,
+        );
+      },
+    );
 
-    testWidgets('Tapping service triggers navigation callback and saves to recents',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Tapping service triggers navigation callback and saves to recents',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      int? navigatedTab;
+        int? navigatedTab;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: AppSearchView(
-            onNavigateTab: (tab) => navigatedTab = tab,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AppSearchView(onNavigateTab: (tab) => navigatedTab = tab),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Tap "Official Notices" -> should switch tab to 3
-      await tester.tap(find.textContaining('Official Notices', findRichText: true));
-      await tester.pumpAndSettle();
+        // Tap "Official Notices" -> should switch tab to 3
+        await tester.tap(
+          find.textContaining('Official Notices', findRichText: true),
+        );
+        await tester.pumpAndSettle();
 
-      expect(navigatedTab, 3);
-    });
+        expect(navigatedTab, 3);
+      },
+    );
 
-    testWidgets('Tapping Scan Passport or Contract Fraud switches to Tab 2 (Scan)',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'Tapping Scan Passport or Contract Fraud switches to Tab 2 (Scan)',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      int? navigatedTab;
+        int? navigatedTab;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: AppSearchView(
-            onNavigateTab: (tab) => navigatedTab = tab,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AppSearchView(onNavigateTab: (tab) => navigatedTab = tab),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Tap "Scan Passport" -> switches tab to 2 (DocumentScanView inside MainNavigationShell)
-      await tester.tap(find.textContaining('Scan Passport', findRichText: true));
-      await tester.pumpAndSettle();
+        // Tap "Scan Passport" -> switches tab to 2 (DocumentScanView inside MainNavigationShell)
+        await tester.tap(
+          find.textContaining('Scan Passport', findRichText: true),
+        );
+        await tester.pumpAndSettle();
 
-      expect(navigatedTab, 2);
-    });
-
-    testWidgets('CrCheckerView renders complete Pre-Departure Checklist card matching expected page',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: CrCheckerView(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Card Header
-      expect(find.text('Pre-Departure Company & Travel Checklist'), findsAtLeast(1));
-      expect(find.text('Check your company and documents before you fly'), findsOneWidget);
-      expect(find.text('0/8 Done'), findsOneWidget);
-      expect(find.text('View Details'), findsOneWidget);
-
-      // Readiness Progress
-      expect(find.text('Departure Readiness'), findsOneWidget);
-      expect(find.text('0%'), findsOneWidget);
-
-      // Checklist Items
-      expect(find.text('NEXT STEP'), findsOneWidget);
-      expect(find.text('Verify BMET Smart Clearance Card via QR code scan'), findsOneWidget);
-      expect(find.text('Verify Company Commercial Registration (CR/Trade License) is active'), findsOneWidget);
-
-      // Toggle action
-      expect(find.text('Show Fewer Items'), findsOneWidget);
-    });
+        expect(navigatedTab, 2);
+      },
+    );
   });
 
   group('HomeView & CustomAppBar Search Trigger tests', () {
-    testWidgets('CustomAppBar search field is clickable and triggers onSearchTap',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets(
+      'CustomAppBar search field is clickable and triggers onSearchTap',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
 
-      var searchTapped = false;
+        var searchTapped = false;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            appBar: CustomAppBar(
-              onSearchTap: () => searchTapped = true,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              appBar: CustomAppBar(onSearchTap: () => searchTapped = true),
+              body: const Center(child: Text('Content')),
             ),
-            body: const Center(child: Text('Content')),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      final searchFinder = find.byType(TextField);
-      expect(searchFinder, findsOneWidget);
+        final searchFinder = find.byType(TextField);
+        expect(searchFinder, findsOneWidget);
 
-      // Verify TextField is readOnly
-      final textField = tester.widget<TextField>(searchFinder);
-      expect(textField.readOnly, isTrue);
+        // Verify TextField is readOnly
+        final textField = tester.widget<TextField>(searchFinder);
+        expect(textField.readOnly, isTrue);
 
-      // Tap search bar
-      await tester.tap(searchFinder);
-      await tester.pumpAndSettle();
+        // Tap search bar
+        await tester.tap(searchFinder);
+        await tester.pumpAndSettle();
 
-      expect(searchTapped, isTrue);
-    });
+        expect(searchTapped, isTrue);
+      },
+    );
 
-    testWidgets('HomeView with showSearchBar renders clickable trigger',
-        (tester) async {
+    testWidgets('HomeView with showSearchBar renders clickable trigger', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);

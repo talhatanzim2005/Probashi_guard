@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert';
 import http from 'node:http';
 import app from '../server.js';
-import { buildReport, normalizeAnalysis, parseScanFile, parseScanFiles } from '../routes/documents.js';
+import { buildReport, normalizeAnalysis, parseModelJson, parseScanFile, parseScanFiles } from '../routes/documents.js';
+import { ModelOutputError } from '../ai/openrouter.js';
 import { detectTipShoi } from '../documents/fraudRules.js';
 import { parsePassportMrz, passportMrzToRawAnalysis, type PassportMrz } from '../documents/identity.js';
 
@@ -37,10 +38,10 @@ test('parseScanFile detects JPEG and strips a data URL prefix', () => {
   assert.strictEqual(parsed.sha256.length, 64);
 });
 
-test('parseScanFile accepts a PDF, so a worker can send a document file as it is', () => {
+test('parseScanFile no longer takes a PDF: vision models are sent photos', () => {
   const parsed = parseScanFile(b64(PDF_HEADER));
-  assert.ok(!('error' in parsed));
-  assert.strictEqual(parsed.mime, 'application/pdf');
+  assert.ok('error' in parsed);
+  assert.match(parsed.error, /JPEG, PNG or WebP/);
 });
 
 test('parseScanFile rejects formats the model cannot read', () => {
@@ -68,14 +69,11 @@ test('parseScanFiles still accepts the single imageBase64 older clients send', (
   assert.strictEqual(files[0].mime, 'image/jpeg');
 });
 
-test('parseScanFiles refuses more than 10 pages and a PDF mixed with photos', () => {
+test('parseScanFiles refuses more than 10 pages', () => {
   const many = parseScanFiles({ filesBase64: Array.from({ length: 11 }, () => b64(JPEG_HEADER)) });
   assert.ok('error' in many);
   assert.match(many.error, /Too many pages/);
 
-  const mixed = parseScanFiles({ filesBase64: [b64(PDF_HEADER), b64(JPEG_HEADER)] });
-  assert.ok('error' in mixed);
-  assert.match(mixed.error, /single PDF or photos/);
 });
 
 test('parseScanFiles reports a missing body as a missing image', () => {
@@ -342,4 +340,33 @@ test('POST /api/documents/mrz with save:false returns the passport analysis unsa
   assert.strictEqual(body.analysis.identity.document_number, 'A01234567');
   assert.strictEqual(body.report.document_type, 'PASSPORT');
   assert.strictEqual(body.report.salary, null);
+});
+
+test('parseModelJson reads a plain JSON object', () => {
+  assert.deepStrictEqual(parseModelJson('{"verdict":"DO_NOT_SIGN","is_legible":true}'), {
+    verdict: 'DO_NOT_SIGN',
+    is_legible: true,
+  });
+});
+
+test('parseModelJson unwraps a markdown fence and text around the object', () => {
+  const fenced = 'Here is the audit:\n```json\n{"a": 1, "b": {"c": [1, 2]}}\n```\nHope that helps.';
+  assert.deepStrictEqual(parseModelJson(fenced), { a: 1, b: { c: [1, 2] } });
+});
+
+test('parseModelJson is not fooled by braces inside strings', () => {
+  const text = 'ok {"clause": "pay {SAR 500} \\" } \\" now", "n": 2} trailing } text';
+  assert.deepStrictEqual(parseModelJson(text), { clause: 'pay {SAR 500} " } " now', n: 2 });
+});
+
+test('parseModelJson keeps Bangla and Arabic text intact', () => {
+  const parsed = parseModelJson('{"summary":"বেতন কম","original":"عقد عمل"}');
+  assert.strictEqual(parsed.summary, 'বেতন কম');
+  assert.strictEqual(parsed.original, 'عقد عمل');
+});
+
+test('parseModelJson rejects empty, non-JSON and non-object replies so the next model is tried', () => {
+  for (const bad of ['', '   ', null, undefined, 'I cannot read this image.', '[1, 2, 3]', '{"cut": "off', 'null']) {
+    assert.throws(() => parseModelJson(bad as any), ModelOutputError, JSON.stringify(bad));
+  }
 });

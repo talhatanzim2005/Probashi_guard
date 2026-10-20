@@ -35,9 +35,10 @@ class QuickSendSection extends StatelessWidget {
         ),
         const SizedBox(height: 14),
 
-        // Horizontal Avatar List
+        // Horizontal Avatar List: the avatar, its gap and a one-line name,
+        // which grows with the system text size (and Bangla sits taller).
         SizedBox(
-          height: 84,
+          height: 64 + MediaQuery.textScalerOf(context).scale(12) * 1.75,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
@@ -88,85 +89,89 @@ class _ContactAvatarItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final ringColor = _accentColors[index % _accentColors.length];
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Circular Avatar Container with Nationality Flag Badge
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: ringColor.withValues(alpha: 0.12),
-                  border: Border.all(
-                    color: ringColor.withValues(alpha: 0.4),
-                    width: 1.6,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: ringColor.withValues(alpha: 0.08),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    contact.initials,
-                    style: TextStyle(
-                      color: ringColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: -2,
-                right: -2,
-                child: Container(
-                  padding: const EdgeInsets.all(1.5),
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Circular Avatar Container with Nationality Flag Badge
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
                   decoration: BoxDecoration(
-                    color: Colors.white,
                     shape: BoxShape.circle,
+                    color: ringColor.withValues(alpha: 0.12),
                     border: Border.all(
-                      color: AppColors.royalBlue.withValues(alpha: 0.18),
-                      width: 0.8,
+                      color: ringColor.withValues(alpha: 0.4),
+                      width: 1.6,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: ringColor.withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      contact.initials,
+                      style: TextStyle(
+                        color: ringColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    contact.countryFlag,
-                    style: const TextStyle(fontSize: 11),
+                ),
+                Positioned(
+                  bottom: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(1.5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.royalBlue.withValues(alpha: 0.18),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      contact.countryFlag,
+                      style: const TextStyle(fontSize: 11),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
+              ],
+            ),
+            const SizedBox(height: 6),
 
-          // Contact Name
-          SizedBox(
-            width: 58,
-            child: Text(
-              contact.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.royalBlue,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.1,
+            // Contact Name
+            SizedBox(
+              width: 58,
+              child: Text(
+                contact.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.royalBlue,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.1,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -179,45 +184,47 @@ class _AddContactItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.cloudDancer,
-              border: Border.all(
-                color: AppColors.royalBlue.withValues(alpha: 0.3),
-                style: BorderStyle.solid,
-                width: 1.4,
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.cloudDancer,
+                border: Border.all(
+                  color: AppColors.royalBlue.withValues(alpha: 0.3),
+                  style: BorderStyle.solid,
+                  width: 1.4,
+                ),
+              ),
+              child: const Center(
+                child: Icon(Icons.add, color: AppColors.royalBlue, size: 22),
               ),
             ),
-            child: const Center(
-              child: Icon(
-                Icons.add,
-                color: AppColors.royalBlue,
-                size: 22,
+            const SizedBox(height: 6),
+            SizedBox(
+              width: 54,
+              child: Text(
+                AppStrings.of(context).add,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.royalBlue,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: 54,
-            child: Text(
-              AppStrings.of(context).add,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.royalBlue,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

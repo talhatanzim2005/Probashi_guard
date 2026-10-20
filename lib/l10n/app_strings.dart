@@ -26,10 +26,8 @@ class AppStrings {
   /// The active strings for [context]. Falls back to English when no
   /// [AppStringsScope] is above it (e.g. a widget tested in isolation).
   static AppStrings of(BuildContext context) {
-    final scope =
-        context.dependOnInheritedWidgetOfExactType<AppStringsScope>();
-    return scope?.strings ??
-        const AppStrings(LanguageController.englishCode);
+    final scope = context.dependOnInheritedWidgetOfExactType<AppStringsScope>();
+    return scope?.strings ?? const AppStrings(LanguageController.englishCode);
   }
 
   // ---------------------------------------------------------------------------
@@ -70,36 +68,103 @@ class AppStrings {
   String get menuAbout => _p('About the App', 'অ্যাপ সম্পর্কে');
   String get menuShareApp => _p('Share App', 'অ্যাপ শেয়ার করুন');
   String get menuProfile => _p('Profile', 'প্রোফাইল');
+
+  // ---------------------------------------------------------------------------
+  // Prohori, the AI assistant
+  // ---------------------------------------------------------------------------
+  String get prohori => _p('Prohori', 'প্রহরী');
+  String get prohoriSubtitle => _p('AI Assistant', 'এআই সহকারী');
+
+  /// The big greeting over an empty chat; [firstName] is the person's first name.
+  String prohoriHi(String firstName) {
+    final name = firstName.trim();
+    if (name.isEmpty) return _p('HI THERE !', 'হ্যালো !');
+    return _p('HI ${name.toUpperCase()} !', 'হ্যালো $name !');
+  }
+
+  String get prohoriPrompt => _p(
+    'What do you want to chat about today?',
+    'আজ আপনি কী নিয়ে কথা বলতে চান?',
+  );
+
+  // The most asked questions, offered as one-tap cards on an empty chat. The
+  // question is what gets sent, so each is worded the way a worker would ask it.
+  String get prohoriRemitTitle => _p('Remittance & Fees', 'রেমিট্যান্স ও ফি');
+  String get prohoriRemitAsk => _p(
+    'How can I send money without hidden fees?',
+    'লুকানো ফি ছাড়া কীভাবে টাকা পাঠাতে পারি?',
+  );
+  String get prohoriLegalTitle => _p('Legal & Contracts', 'আইন ও চুক্তি');
+  String get prohoriLegalAsk => _p(
+    'My employer wants a fingerprint on a blank paper.',
+    'আমার মালিক সাদা কাগজে আঙুলের ছাপ চাইছে।',
+  );
+  String get prohoriRightsTitle => _p('Worker Rights', 'শ্রমিকের অধিকার');
+  String get prohoriRightsAsk =>
+      _p('What is the legal minimum wage?', 'আইনি ন্যূনতম মজুরি কত?');
+  String get prohoriInputHint =>
+      _p('Ask Prohori a question', 'প্রহরীকে প্রশ্ন করুন');
+  String get prohoriSend => _p('Send', 'পাঠান');
+  String get prohoriThinking => _p('Prohori is typing', 'প্রহরী লিখছে');
+  String get prohoriDisclaimer => _p(
+    'General guidance only, not legal advice.',
+    'এটি সাধারণ পরামর্শ, আইনি পরামর্শ নয়।',
+  );
+  String get prohoriUnavailable => _p(
+    'Prohori is not available yet. Please try again later.',
+    'প্রহরী এখনো চালু হয়নি। কিছুক্ষণ পরে আবার চেষ্টা করুন।',
+  );
+  String get prohoriUnreachable => _p(
+    'Cannot reach Prohori. Check your internet connection and try again.',
+    'প্রহরীর সাথে যোগাযোগ করা যাচ্ছে না। ইন্টারনেট দেখে আবার চেষ্টা করুন।',
+  );
+  String get prohoriTimeout => _p(
+    'Prohori is taking too long to answer. Please try again.',
+    'প্রহরী উত্তর দিতে দেরি করছে। আবার চেষ্টা করুন।',
+  );
+  String get prohoriBusy => _p(
+    'Prohori is busy right now. Please try again in a minute.',
+    'প্রহরী এখন ব্যস্ত আছে। এক মিনিট পরে আবার চেষ্টা করুন।',
+  );
+  String get prohoriSignIn => _p(
+    'Please log in again to talk to Prohori.',
+    'প্রহরীর সাথে কথা বলতে আবার লগ ইন করুন।',
+  );
+  String get prohoriFailed => _p(
+    'Prohori could not answer that. Please try again.',
+    'প্রহরী এর উত্তর দিতে পারেনি। আবার চেষ্টা করুন।',
+  );
   String get badgeNew => _p('New', 'নতুন!');
   String version(String v) => _p('Version: $v', 'ভার্সন: $v');
 
   String get logOut => _p('Log Out', 'লগ আউট');
   String get logOutQuestion => _p('Log out?', 'লগ আউট করবেন?');
   String get logOutBody => _p(
-        'You will need to sign in again to use the app.',
-        'অ্যাপ ব্যবহার করতে আপনাকে আবার লগইন করতে হবে।',
-      );
+    'You will need to sign in again to use the app.',
+    'অ্যাপ ব্যবহার করতে আপনাকে আবার লগইন করতে হবে।',
+  );
 
   // ---------------------------------------------------------------------------
   // App bar
   // ---------------------------------------------------------------------------
-  String get searchHint =>
-      'Search services, features... / সেবা খুঁজুন...';
+  String get searchHint => 'Search services, features... / সেবা খুঁজুন...';
   String get recentSearches => _p('Recent Searches', 'সাম্প্রতিক অনুসন্ধান');
   String get exploreServices => _p('Explore Services', 'সেবা সমূহ');
-  String get noServicesFound => _p('No services found', 'কোনো সেবা পাওয়া যায়নি');
+  String get noServicesFound =>
+      _p('No services found', 'কোনো সেবা পাওয়া যায়নি');
   String get clearAll => _p('Clear All', 'সব মুছুন');
-  String get tapToSeeBalance => _p('Tap to see balance', 'ব্যালেন্স দেখতে চাপুন');
+  String get tapToSeeBalance =>
+      _p('Tap to see balance', 'ব্যালেন্স দেখতে চাপুন');
   String get hideBalance => _p('Hide balance', 'ব্যালেন্স লুকান');
   String get showBalance => _p('Show balance', 'ব্যালেন্স দেখান');
   String balanceShownA11y(String balance) => _p(
-        'Balance $balance. Double tap to hide.',
-        'ব্যালেন্স $balance। লুকাতে দুইবার চাপুন।',
-      );
+    'Balance $balance. Double tap to hide.',
+    'ব্যালেন্স $balance। লুকাতে দুইবার চাপুন।',
+  );
   String get balanceHiddenA11y => _p(
-        'Balance hidden. Double tap to show.',
-        'ব্যালেন্স লুকানো আছে। দেখতে দুইবার চাপুন।',
-      );
+    'Balance hidden. Double tap to show.',
+    'ব্যালেন্স লুকানো আছে। দেখতে দুইবার চাপুন।',
+  );
 
   // ---------------------------------------------------------------------------
   // Home / dashboard
@@ -107,17 +172,17 @@ class AppStrings {
   String get welcome => _p('Welcome', 'স্বাগতম');
   String greeting(String name) => _p('Hi, $name', 'হ্যালো, $name');
   String get dashboardSubtitle => _p(
-        'Your Overseas Protection Dashboard',
-        'বিদেশে আপনার সুরক্ষার ড্যাশবোর্ড',
-      );
+    'Your Overseas Protection Dashboard',
+    'বিদেশে আপনার সুরক্ষার ড্যাশবোর্ড',
+  );
   String get checklistTitle => _p(
-        'Pre-Departure Company & Travel Checklist',
-        'যাওয়ার আগে কোম্পানি ও সফরের চেকলিস্ট',
-      );
+    'Pre-Departure Company & Travel Checklist',
+    'যাওয়ার আগে কোম্পানি ও সফরের চেকলিস্ট',
+  );
   String get checklistSubtitle => _p(
-        'Check your company and documents before you fly',
-        'ফ্লাইটের আগে কোম্পানি ও কাগজপত্র যাচাই করে নিন',
-      );
+    'Check your company and documents before you fly',
+    'ফ্লাইটের আগে কোম্পানি ও কাগজপত্র যাচাই করে নিন',
+  );
   String checklistDone(int done, int total) =>
       _p('$done/$total Done', '$done/$total শেষ');
   String get viewDetails => _p('View Details', 'বিস্তারিত দেখুন');
@@ -130,8 +195,7 @@ class AppStrings {
   String get markAsDoneHint =>
       _p('Double tap to mark as done', 'শেষ করতে দুইবার চাপুন');
   String get fullyProtected => _p('Fully Protected', 'পুরোপুরি সুরক্ষিত');
-  String get partiallyProtected =>
-      _p('Partially Protected', 'কিছুটা সুরক্ষিত');
+  String get partiallyProtected => _p('Partially Protected', 'কিছুটা সুরক্ষিত');
   String get actionNeeded => _p('Action Needed', 'কাজ বাকি আছে');
   String get quickFeatures => _p('Quick Features', 'দরকারি সেবা');
   String get noticeBoard => _p('Notice Board', 'নোটিশ বোর্ড');
@@ -144,62 +208,94 @@ class AppStrings {
   /// The pre-departure checklist, in display order. The widget keeps only the
   /// tick state, so the wording lives here and switches with the language.
   List<ChecklistText> get checklist => [
-        ChecklistText(
-          _p('Verify Company Commercial Registration (CR/Trade License) is active',
-              'কোম্পানির ট্রেড লাইসেন্স / CR চালু আছে কিনা দেখুন'),
-          _p('Official host country establishment database status',
-              'যে দেশে যাবেন সেখানকার সরকারি তালিকায় যাচাই'),
-        ),
-        ChecklistText(
-          _p('Confirm work visa is authentic on the host country immigration portal',
-              'ভিসা আসল কিনা ইমিগ্রেশন পোর্টালে যাচাই করুন'),
-          _p('Cross-check visa number directly with ministry records',
-              'ভিসা নম্বর মন্ত্রণালয়ের তথ্যের সাথে মিলিয়ে নিন'),
-        ),
-        ChecklistText(
-          _p("Ensure visa type is 'Work/Employment' (NOT Visit or Tourist)",
-              'ভিসা অবশ্যই কাজের (Work) হতে হবে — ভিজিট বা টুরিস্ট নয়'),
-          _p('Avoid illegal travel on visitor visas without legal protections',
-              'ভিজিট ভিসায় গেলে কোনো আইনি সুরক্ষা থাকে না'),
-        ),
-        ChecklistText(
-          _p('Verify BMET Smart Clearance Card via QR code scan',
-              'BMET স্মার্ট কার্ড QR কোড স্ক্যান করে যাচাই করুন'),
-          _p('Government authorized emigrant clearance registration',
-              'সরকার অনুমোদিত ছাড়পত্রের নিবন্ধন'),
-        ),
-        ChecklistText(
-          _p('Cross-check that company name on contract matches the visa',
-              'চুক্তির কোম্পানির নাম ভিসার সাথে মিলছে কিনা দেখুন'),
-          _p('Guarantees the sponsor matches the real workplace',
-              'যাতে কফিল আর আসল কাজের জায়গা একই হয়'),
-        ),
-        ChecklistText(
-          _p('Confirm salary, food allowance, and accommodation terms in writing',
-              'বেতন, খাওয়া ও থাকার শর্ত লিখিতভাবে নিশ্চিত করুন'),
-          _p('Legally attested employment agreement terms',
-              'সত্যায়িত চাকরির চুক্তির শর্ত'),
-        ),
-        ChecklistText(
-          _p('Obtain company representative contact and airport pickup details',
-              'কোম্পানির লোকের নম্বর ও বিমানবন্দরে কে নিতে আসবে জেনে নিন'),
-          _p('Authorized reception contact point at arrival airport',
-              'পৌঁছানোর বিমানবন্দরে অনুমোদিত লোকের তথ্য'),
-        ),
-        ChecklistText(
-          _p('Save embassy helpline and labor dispute contact numbers',
-              'দূতাবাসের হেল্পলাইন ও শ্রম সমস্যার নম্বর সেভ রাখুন'),
-          _p('Direct hotlines for legal and labor grievance support',
-              'আইনি ও শ্রম অভিযোগের সরাসরি নম্বর'),
-        ),
-      ];
+    ChecklistText(
+      _p(
+        'Verify Company Commercial Registration (CR/Trade License) is active',
+        'কোম্পানির ট্রেড লাইসেন্স / CR চালু আছে কিনা দেখুন',
+      ),
+      _p(
+        'Official host country establishment database status',
+        'যে দেশে যাবেন সেখানকার সরকারি তালিকায় যাচাই',
+      ),
+    ),
+    ChecklistText(
+      _p(
+        'Confirm work visa is authentic on the host country immigration portal',
+        'ভিসা আসল কিনা ইমিগ্রেশন পোর্টালে যাচাই করুন',
+      ),
+      _p(
+        'Cross-check visa number directly with ministry records',
+        'ভিসা নম্বর মন্ত্রণালয়ের তথ্যের সাথে মিলিয়ে নিন',
+      ),
+    ),
+    ChecklistText(
+      _p(
+        "Ensure visa type is 'Work/Employment' (NOT Visit or Tourist)",
+        'ভিসা অবশ্যই কাজের (Work) হতে হবে — ভিজিট বা টুরিস্ট নয়',
+      ),
+      _p(
+        'Avoid illegal travel on visitor visas without legal protections',
+        'ভিজিট ভিসায় গেলে কোনো আইনি সুরক্ষা থাকে না',
+      ),
+    ),
+    ChecklistText(
+      _p(
+        'Verify BMET Smart Clearance Card via QR code scan',
+        'BMET স্মার্ট কার্ড QR কোড স্ক্যান করে যাচাই করুন',
+      ),
+      _p(
+        'Government authorized emigrant clearance registration',
+        'সরকার অনুমোদিত ছাড়পত্রের নিবন্ধন',
+      ),
+    ),
+    ChecklistText(
+      _p(
+        'Cross-check that company name on contract matches the visa',
+        'চুক্তির কোম্পানির নাম ভিসার সাথে মিলছে কিনা দেখুন',
+      ),
+      _p(
+        'Guarantees the sponsor matches the real workplace',
+        'যাতে কফিল আর আসল কাজের জায়গা একই হয়',
+      ),
+    ),
+    ChecklistText(
+      _p(
+        'Confirm salary, food allowance, and accommodation terms in writing',
+        'বেতন, খাওয়া ও থাকার শর্ত লিখিতভাবে নিশ্চিত করুন',
+      ),
+      _p(
+        'Legally attested employment agreement terms',
+        'সত্যায়িত চাকরির চুক্তির শর্ত',
+      ),
+    ),
+    ChecklistText(
+      _p(
+        'Obtain company representative contact and airport pickup details',
+        'কোম্পানির লোকের নম্বর ও বিমানবন্দরে কে নিতে আসবে জেনে নিন',
+      ),
+      _p(
+        'Authorized reception contact point at arrival airport',
+        'পৌঁছানোর বিমানবন্দরে অনুমোদিত লোকের তথ্য',
+      ),
+    ),
+    ChecklistText(
+      _p(
+        'Save embassy helpline and labor dispute contact numbers',
+        'দূতাবাসের হেল্পলাইন ও শ্রম সমস্যার নম্বর সেভ রাখুন',
+      ),
+      _p(
+        'Direct hotlines for legal and labor grievance support',
+        'আইনি ও শ্রম অভিযোগের সরাসরি নম্বর',
+      ),
+    ),
+  ];
 
   /// The home notice slider, in display order.
   List<NoticeText> get noticeSlides => [
-        NoticeText(fraudAlert, noticeFraudBody),
-        NoticeText(embassyAdvisory, noticeEmbassyBody),
-        NoticeText(laborWingNotice, noticeLaborBody),
-      ];
+    NoticeText(fraudAlert, noticeFraudBody),
+    NoticeText(embassyAdvisory, noticeEmbassyBody),
+    NoticeText(laborWingNotice, noticeLaborBody),
+  ];
 
   // ---------------------------------------------------------------------------
   // Notices
@@ -209,66 +305,56 @@ class AppStrings {
   String get viewCompact => _p('Compact', 'সংক্ষিপ্ত');
   String get viewExpanded => _p('Expanded', 'বিস্তারিত');
   String get noNoticesYet => _p(
-        'No notices yet.\nCheck back soon for migration news.',
-        'এখনো কোনো নোটিশ নেই।\nপ্রবাস সংক্রান্ত খবরের জন্য পরে দেখুন।',
-      );
-  String get noticesUnavailable => _p(
-        'Could not load notices right now.',
-        'এখন নোটিশ আনা যাচ্ছে না।',
-      );
+    'No notices yet.\nCheck back soon for migration news.',
+    'এখনো কোনো নোটিশ নেই।\nপ্রবাস সংক্রান্ত খবরের জন্য পরে দেখুন।',
+  );
+  String get noticesUnavailable =>
+      _p('Could not load notices right now.', 'এখন নোটিশ আনা যাচ্ছে না।');
   String get readFullStory => _p('Read full story', 'পুরো খবর পড়ুন');
   String get couldNotOpenLink => _p(
-        'Could not open that link in a browser.',
-        'ব্রাউজারে লিংকটি খোলা যায়নি।',
-      );
+    'Could not open that link in a browser.',
+    'ব্রাউজারে লিংকটি খোলা যায়নি।',
+  );
   String get fraudAlert => _p('FRAUD ALERT', 'জালিয়াতির সতর্কতা');
   String get embassyAdvisory => _p('EMBASSY ADVISORY', 'দূতাবাসের নির্দেশনা');
   String get laborWingNotice => _p('LABOR WING NOTICE', 'লেবার উইং নোটিশ');
   String get noticeFraudBody => _p(
-        'Fraud Alert: Verify all work permits on the official embassy portal before booking flights.',
-        'সতর্কতা: ফ্লাইট বুকিংয়ের আগে দূতাবাসের অফিশিয়াল পোর্টালে ওয়ার্ক পারমিট যাচাই করুন।',
-      );
+    'Fraud Alert: Verify all work permits on the official embassy portal before booking flights.',
+    'সতর্কতা: ফ্লাইট বুকিংয়ের আগে দূতাবাসের অফিশিয়াল পোর্টালে ওয়ার্ক পারমিট যাচাই করুন।',
+  );
   String get noticeEmbassyBody => _p(
-        'Embassy Advisory: Mandatory BMET Smart Card scanning at airport immigration.',
-        'দূতাবাসের নির্দেশনা: বিমানবন্দরে ইমিগ্রেশনে BMET স্মার্ট কার্ড স্ক্যান করা বাধ্যতামূলক।',
-      );
+    'Embassy Advisory: Mandatory BMET Smart Card scanning at airport immigration.',
+    'দূতাবাসের নির্দেশনা: বিমানবন্দরে ইমিগ্রেশনে BMET স্মার্ট কার্ড স্ক্যান করা বাধ্যতামূলক।',
+  );
   String get noticeLaborBody => _p(
-        'Labor Wing Notice: Updated minimum wage standards for destination countries.',
-        'লেবার উইং নোটিশ: যে দেশে যাবেন সেখানকার সর্বনিম্ন বেতনের নতুন নিয়ম।',
-      );
+    'Labor Wing Notice: Updated minimum wage standards for destination countries.',
+    'লেবার উইং নোটিশ: যে দেশে যাবেন সেখানকার সর্বনিম্ন বেতনের নতুন নিয়ম।',
+  );
   String get urgentAirportAdvisory => _p(
-        'Urgent Airport Clearance Advisory',
-        'বিমানবন্দর ছাড়পত্র নিয়ে জরুরি নির্দেশনা',
-      );
+    'Urgent Airport Clearance Advisory',
+    'বিমানবন্দর ছাড়পত্র নিয়ে জরুরি নির্দেশনা',
+  );
   String get importantAdvisoryBody => _p(
-        'Important Advisory: Verify all job offers and CR numbers before airport departure.',
-        'জরুরি নির্দেশনা: বিমানবন্দরে যাওয়ার আগে চাকরির অফার ও CR নম্বর যাচাই করুন।',
-      );
+    'Important Advisory: Verify all job offers and CR numbers before airport departure.',
+    'জরুরি নির্দেশনা: বিমানবন্দরে যাওয়ার আগে চাকরির অফার ও CR নম্বর যাচাই করুন।',
+  );
 
   // ---------------------------------------------------------------------------
   // Document scanner
   // ---------------------------------------------------------------------------
   String get documentScanner => _p('Document Scanner', 'ডকুমেন্ট স্ক্যানার');
   String get scannerSubtitle => _p(
-        'Check any contract or paper before you sign or give a thumbprint.',
-        'সই বা টিপসই দেওয়ার আগে যেকোনো কাগজ যাচাই করে নিন।',
-      );
+    'Check any contract or paper before you sign or give a thumbprint.',
+    'সই বা টিপসই দেওয়ার আগে যেকোনো কাগজ যাচাই করে নিন।',
+  );
   String get scanContractVisa => _p('Contract / Visa', 'চুক্তি / ভিসা');
   String get scanPassport => _p('Passport', 'পাসপোর্ট');
   String get takePhoto => _p('Photos', 'ছবি');
   String get gallery => _p('Gallery', 'গ্যালারি');
-  String get pdf => _p('PDF', 'পিডিএফ');
   String get vault => _p('Vault', 'ভল্ট');
-  String get checkThisPdf => _p('Check this PDF', 'এই পিডিএফ যাচাই করুন');
-  String checkPages(int count) => _p(
-        'Check $count page${count == 1 ? '' : 's'}',
-        '$count টি পাতা যাচাই করুন',
-      );
+  String get checkDocument => _p('Check document', 'ডকুমেন্ট যাচাই করুন');
   String get captureDocument => _p('Capture document', 'কাগজের ছবি তুলুন');
-  String get removeThePdf => _p('Remove the PDF', 'পিডিএফ সরান');
-  String removePage(int n) => _p('Remove page $n', '$n নম্বর পাতা সরান');
-  String get choosePdfDocument =>
-      _p('Choose a PDF document', 'একটি পিডিএফ বেছে নিন');
+  String get removeThePhoto => _p('Remove the photo', 'ছবিটি সরান');
 
   String get stageTakingPhoto => _p('Taking photo...', 'ছবি তোলা হচ্ছে…');
   String get stageAnalyzing =>
@@ -276,108 +362,74 @@ class AppStrings {
   String get stageCheckingPassport =>
       _p('Checking passport details...', 'পাসপোর্টের তথ্য যাচাই করা হচ্ছে…');
   String get waitHint =>
-      _p('This can take up to 30 seconds', 'এতে ৩০ সেকেন্ড পর্যন্ত লাগতে পারে');
+      _p('This can take up to 2 minutes', 'এতে ২ মিনিট পর্যন্ত লাগতে পারে');
   String get passportHint => _p(
-        'Hold the passport photo page flat with the two code lines at the bottom inside the frame. It scans automatically.',
-        'পাসপোর্টের ছবির পাতা সমান করে ধরুন, নিচের কোডের দুই লাইন ফ্রেমের ভেতরে রাখুন। নিজে থেকেই স্ক্যান হবে।',
-      );
+    'Hold the passport photo page flat with the two code lines at the bottom inside the frame. It scans automatically.',
+    'পাসপোর্টের ছবির পাতা সমান করে ধরুন, নিচের কোডের দুই লাইন ফ্রেমের ভেতরে রাখুন। নিজে থেকেই স্ক্যান হবে।',
+  );
   String get mrzUnclearHint => _p(
-        'Hold still: the code lines are not clear yet.',
-        'স্থির রাখুন: কোডের লাইনগুলো এখনো পরিষ্কার পড়া যাচ্ছে না।',
-      );
+    'Hold still: the code lines are not clear yet.',
+    'স্থির রাখুন: কোডের লাইনগুলো এখনো পরিষ্কার পড়া যাচ্ছে না।',
+  );
   String get pageHint => _p(
-        'Photograph each page, or pick photos or a PDF, then tap Check.',
-        'প্রতিটি পাতার ছবি তুলুন বা গ্যালারি/পিডিএফ থেকে বেছে নিন, তারপর “যাচাই করুন” চাপুন।',
-      );
+    'Photograph the document or pick a photo, then tap Check.',
+    'কাগজের ছবি তুলুন বা একটি ছবি বেছে নিন, তারপর “যাচাই করুন” চাপুন।',
+  );
 
   // Scanner problems — short, plain, and always say what to do next.
   String get noCameraFound => _p(
-        'No camera found. Choose a photo from the gallery instead.',
-        'ক্যামেরা পাওয়া যায়নি। গ্যালারি থেকে ছবি বেছে নিন।',
-      );
+    'No camera found. Choose a photo from the gallery instead.',
+    'ক্যামেরা পাওয়া যায়নি। গ্যালারি থেকে ছবি বেছে নিন।',
+  );
   String get cameraPermissionOff => _p(
-        'Camera permission is off. Allow camera access in Settings, or choose a photo from the gallery.',
-        'ক্যামেরার অনুমতি বন্ধ আছে। সেটিংসে অনুমতি দিন, বা গ্যালারি থেকে ছবি বেছে নিন।',
-      );
+    'Camera permission is off. Allow camera access in Settings, or choose a photo from the gallery.',
+    'ক্যামেরার অনুমতি বন্ধ আছে। সেটিংসে অনুমতি দিন, বা গ্যালারি থেকে ছবি বেছে নিন।',
+  );
   String get cameraCouldNotStart => _p(
-        'Could not start the camera. Choose a photo from the gallery instead.',
-        'ক্যামেরা চালু করা যায়নি। গ্যালারি থেকে ছবি বেছে নিন।',
-      );
+    'Could not start the camera. Choose a photo from the gallery instead.',
+    'ক্যামেরা চালু করা যায়নি। গ্যালারি থেকে ছবি বেছে নিন।',
+  );
   String get cameraUnavailable => _p(
-        'The camera is not available on this device. Choose a photo from the gallery instead.',
-        'এই ফোনে ক্যামেরা কাজ করছে না। গ্যালারি থেকে ছবি বেছে নিন।',
-      );
+    'The camera is not available on this device. Choose a photo from the gallery instead.',
+    'এই ফোনে ক্যামেরা কাজ করছে না। গ্যালারি থেকে ছবি বেছে নিন।',
+  );
   String get captureFailed => _p(
-        'Could not take the photo. Please try again.',
-        'ছবি তোলা যায়নি। আবার চেষ্টা করুন।',
-      );
+    'Could not take the photo. Please try again.',
+    'ছবি তোলা যায়নি। আবার চেষ্টা করুন।',
+  );
   String get galleryOpenFailed =>
       _p('Could not open the gallery.', 'গ্যালারি খোলা যায়নি।');
-  String get photosOpenFailed =>
-      _p('Could not open those photos.', 'ছবিগুলো খোলা যায়নি।');
   String get photoOpenFailed =>
       _p('Could not open that photo.', 'ছবিটি খোলা যায়নি।');
-  String get filesOpenFailed =>
-      _p('Could not open your files.', 'আপনার ফাইল খোলা যায়নি।');
-  String maxPagesAtOnce(int max) => _p(
-        'Only $max pages can be checked at once. Check these first, then scan the rest.',
-        'একবারে $max টি পাতা যাচাই করা যায়। আগে এগুলো যাচাই করুন, পরে বাকিগুলো।',
-      );
-  String upToPagesAtOnce(int max) => _p(
-        'Up to $max pages can be checked at once.',
-        'একবারে $max টি পাতা পর্যন্ত যাচাই করা যায়।',
-      );
-  String get pdfAlreadyAttached => _p(
-        'A PDF is already attached. Remove it to choose another.',
-        'একটি পিডিএফ আগেই দেওয়া আছে। অন্যটি দিতে সেটি সরান।',
-      );
-  String get pdfCheckedAlone => _p(
-        'A PDF is checked on its own. Remove the photos first, or check them.',
-        'পিডিএফ আলাদাভাবে যাচাই হয়। আগে ছবিগুলো সরান, বা সেগুলো যাচাই করুন।',
-      );
-  String get pdfAttachedRemoveToPhotograph => _p(
-        'A PDF is attached. Remove it to photograph pages instead.',
-        'একটি পিডিএফ দেওয়া আছে। পাতার ছবি তুলতে সেটি সরান।',
-      );
-  String get pdfTooLarge => _p(
-        'That PDF is too large (over 8 MB). Please choose a smaller file.',
-        'পিডিএফটি অনেক বড় (৮ MB-র বেশি)। ছোট একটি ফাইল বেছে নিন।',
-      );
-  String get pdfUnreadable =>
-      _p('Could not read that PDF.', 'পিডিএফটি পড়া যায়নি।');
-  String get pdfEmpty => _p(
-        'That PDF is empty. Please choose another file.',
-        'পিডিএফটি খালি। অন্য একটি ফাইল বেছে নিন।',
-      );
   String get noPassportCode => _p(
-        'No passport code found. Choose a clear photo of the passport photo page.',
-        'পাসপোর্টের কোড (MRZ) পাওয়া যায়নি। ছবির পাতার পরিষ্কার ছবি দিন।',
-      );
+    'No passport code found. Choose a clear photo of the passport photo page.',
+    'পাসপোর্টের কোড (MRZ) পাওয়া যায়নি। ছবির পাতার পরিষ্কার ছবি দিন।',
+  );
   String get passportCodeUnclear => _p(
-        'The passport code could not be read clearly. Try a sharper photo.',
-        'পাসপোর্টের কোড পরিষ্কার পড়া যায়নি। আরও পরিষ্কার ছবি দিন।',
-      );
+    'The passport code could not be read clearly. Try a sharper photo.',
+    'পাসপোর্টের কোড পরিষ্কার পড়া যায়নি। আরও পরিষ্কার ছবি দিন।',
+  );
   String get vaultRejectedScan => _p(
-        'The document vault did not accept this scan. Please try again.',
-        'ভল্টে এই স্ক্যান নেওয়া হয়নি। আবার চেষ্টা করুন।',
-      );
+    'The document vault did not accept this scan. Please try again.',
+    'ভল্টে এই স্ক্যান নেওয়া হয়নি। আবার চেষ্টা করুন।',
+  );
   String get couldNotSaveDocument => _p(
-        'Could not save this document. Please try again.',
-        'কাগজটি সেভ করা যায়নি। আবার চেষ্টা করুন।',
-      );
+    'Could not save this document. Please try again.',
+    'কাগজটি সেভ করা যায়নি। আবার চেষ্টা করুন।',
+  );
   String get scanWentWrong => _p(
-        'Something went wrong while checking the document. Please try again.',
-        'কাগজ যাচাই করার সময় সমস্যা হয়েছে। আবার চেষ্টা করুন।',
-      );
+    'Something went wrong while checking the document. Please try again.',
+    'কাগজ যাচাই করার সময় সমস্যা হয়েছে। আবার চেষ্টা করুন।',
+  );
 
   // ---------------------------------------------------------------------------
   // Saved documents
   // ---------------------------------------------------------------------------
   String get savedDocuments => _p('Saved Documents', 'সংরক্ষিত ডকুমেন্ট');
   String get noSavedDocuments => _p(
-        'No saved documents yet.\nScan a contract to check it before you sign.',
-        'এখনো কোনো কাগজ সেভ করা হয়নি।\nসই করার আগে চুক্তি স্ক্যান করে যাচাই করুন।',
-      );
+    'No saved documents yet.\nScan a contract to check it before you sign.',
+    'এখনো কোনো কাগজ সেভ করা হয়নি।\nসই করার আগে চুক্তি স্ক্যান করে যাচাই করুন।',
+  );
   String get documentFallbackName => _p('Document', 'কাগজ');
 
   // ---------------------------------------------------------------------------
@@ -387,9 +439,9 @@ class AppStrings {
   String get verdictCaution => _p('CAUTION', 'সতর্ক থাকুন');
   String get verdictDoNotSign => _p('DO NOT SIGN', 'স্বাক্ষর করবেন না');
   String get tipShoiWarning => _p(
-        'Warning: Never give your thumbprint or signature on a blank paper or on a document that demands money!',
-        'সতর্কতা: খালি কাগজে বা টাকা দাবি করা কোনো কাগজে কখনোই টিপসই বা সই দেবেন না!',
-      );
+    'Warning: Never give your thumbprint or signature on a blank paper or on a document that demands money!',
+    'সতর্কতা: খালি কাগজে বা টাকা দাবি করা কোনো কাগজে কখনোই টিপসই বা সই দেবেন না!',
+  );
   String get riskNoStamp => _p('No Stamp Found', 'কোনো সিল পাওয়া যায়নি');
   String get riskBlankSignatureLine =>
       _p('Blank Signature Line Detected', 'টিপসই ঝুঁকি: খালি সইয়ের ঘর');
@@ -399,7 +451,8 @@ class AppStrings {
   // Remittance — wallet home
   // ---------------------------------------------------------------------------
   String get currency => _p('Currency', 'মুদ্রা');
-  String get availableBalance => _p('Available Balance', 'ব্যবহারযোগ্য ব্যালেন্স');
+  String get availableBalance =>
+      _p('Available Balance', 'ব্যবহারযোগ্য ব্যালেন্স');
   String get tapCardToSwitch => _p('Tap card to switch', 'কার্ড বদলাতে চাপুন');
   String get send => _p('Send', 'পাঠান');
   String get receive => _p('Receive', 'গ্রহণ করুন');
@@ -423,10 +476,11 @@ class AppStrings {
   String get addBeneficiary =>
       _p('Add Remittance Beneficiary', 'টাকা পাঠানোর লোক যোগ করুন');
   String get addBeneficiarySubtitle => _p(
-        'Save family or merchant details for quick 1-tap transfer',
-        'পরিবার বা দোকানের তথ্য সেভ রাখলে এক চাপে টাকা পাঠাতে পারবেন',
-      );
-  String get recipientFullName => _p('Recipient Full Name', 'যাকে পাঠাবেন তার পুরো নাম');
+    'Save family or merchant details for quick 1-tap transfer',
+    'পরিবার বা দোকানের তথ্য সেভ রাখলে এক চাপে টাকা পাঠাতে পারবেন',
+  );
+  String get recipientFullName =>
+      _p('Recipient Full Name', 'যাকে পাঠাবেন তার পুরো নাম');
   String mobileNumberHint(String dialCode) =>
       _p('Mobile Number ($dialCode...)', 'মোবাইল নম্বর ($dialCode...)');
   String get saveBeneficiary => _p('Save Beneficiary', 'সেভ করুন');
@@ -440,19 +494,19 @@ class AppStrings {
 
   String get selectRecipient => _p('Select Recipient', 'যাকে পাঠাবেন বেছে নিন');
   String get selectRecipientSubtitle => _p(
-        'Search by name, country, or phone number across all countries',
-        'নাম, দেশ বা মোবাইল নম্বর দিয়ে খুঁজুন',
-      );
+    'Search by name, country, or phone number across all countries',
+    'নাম, দেশ বা মোবাইল নম্বর দিয়ে খুঁজুন',
+  );
   String get searchContactHint =>
       _p('Search contact or enter phone...', 'নাম খুঁজুন বা নম্বর লিখুন...');
   String noMatchingContact(String query) => _p(
-        'No matching contact found for "$query"',
-        '"$query" নামে কিছু পাওয়া যায়নি',
-      );
+    'No matching contact found for "$query"',
+    '"$query" নামে কিছু পাওয়া যায়নি',
+  );
   String get sendDirectlyHint => _p(
-        'You can still send directly using the banner above',
-        'উপরের অংশ থেকে সরাসরি পাঠাতে পারেন',
-      );
+    'You can still send directly using the banner above',
+    'উপরের অংশ থেকে সরাসরি পাঠাতে পারেন',
+  );
   String sendDirectlyTo(String number) =>
       _p('Send directly to $number', 'সরাসরি $number এ পাঠান');
   String get selectDestinationCountry =>
@@ -468,37 +522,35 @@ class AppStrings {
   String availableShort(String amount) => _p('Avail: $amount', 'আছে: $amount');
   String get reviewTransferDetails =>
       _p('Review Transfer Details', 'তথ্য দেখে নিন');
-  String get enterAmountGreaterThanZero => _p(
-        'Please enter an amount greater than 0',
-        '০ এর বেশি টাকা লিখুন',
-      );
+  String get enterAmountGreaterThanZero =>
+      _p('Please enter an amount greater than 0', '০ এর বেশি টাকা লিখুন');
   String get amountExceedsBalance => _p(
-        'Entered amount exceeds your available card balance',
-        'কার্ডে এত টাকা নেই',
-      );
+    'Entered amount exceeds your available card balance',
+    'কার্ডে এত টাকা নেই',
+  );
   String get exchangeRate => _p('Exchange Rate', 'রেট');
   String get govtIncentive => _p('Govt Incentive', 'সরকারি প্রণোদনা');
   String get vatOnCommission => _p('Vat on Commission', 'কমিশনের উপর ভ্যাট');
   String get chargedInUsd => _p('Charged in USD', 'ডলারে কাটা হবে');
   String get totalDebited => _p('Total Debited', 'মোট কাটা হবে');
   String get usdSettlementNote => _p(
-        'Every transfer is settled in US Dollars, then paid out in the '
-            "recipient's local currency.",
-        'প্রতিটি লেনদেন ডলারে হয়, তারপর প্রাপকের দেশের মুদ্রায় দেওয়া হয়।',
-      );
+    'Every transfer is settled in US Dollars, then paid out in the '
+        "recipient's local currency.",
+    'প্রতিটি লেনদেন ডলারে হয়, তারপর প্রাপকের দেশের মুদ্রায় দেওয়া হয়।',
+  );
 
   String get reviewAndConfirm => _p('Review & Confirm', 'দেখে নিশ্চিত করুন');
   String get reviewSubtitle => _p(
-        'Please verify recipient and remittance amount carefully',
-        'যাকে পাঠাচ্ছেন ও টাকার পরিমাণ ভালো করে দেখে নিন',
-      );
+    'Please verify recipient and remittance amount carefully',
+    'যাকে পাঠাচ্ছেন ও টাকার পরিমাণ ভালো করে দেখে নিন',
+  );
   String get recipientReceives => _p('RECIPIENT RECEIVES', 'তিনি পাবেন');
   String get govtBonusIncluded =>
       _p('Govt 2.5% Cash Bonus included', 'সরকারি ২.৫% প্রণোদনা সহ');
   String guaranteedSettlement(String country) => _p(
-        'Guaranteed Cross-Border Settlement to $country',
-        '$country-এ পৌঁছানোর নিশ্চয়তা',
-      );
+    'Guaranteed Cross-Border Settlement to $country',
+    '$country-এ পৌঁছানোর নিশ্চয়তা',
+  );
   String get destinationCountry => _p('Destination Country', 'যে দেশে যাবে');
   String get accountOrPhone => _p('Account / Phone', 'একাউন্ট / মোবাইল');
   String get channelProvider => _p('Channel / Provider', 'যে মাধ্যমে');
@@ -509,19 +561,20 @@ class AppStrings {
   String get settlementSpeed => _p('Settlement Speed', 'কত সময় লাগবে');
   String get instantVerified => _p('Instant Verified', 'সাথে সাথে');
   String get remittanceProtectionNote => _p(
-        'Protected by Bangladesh Bank Expatriate Remittance Guidelines & Host WPS Guarantee.',
-        'বাংলাদেশ ব্যাংকের প্রবাসী রেমিট্যান্স নিয়ম ও WPS সুরক্ষার আওতায়।',
-      );
+    'Protected by Bangladesh Bank Expatriate Remittance Guidelines & Host WPS Guarantee.',
+    'বাংলাদেশ ব্যাংকের প্রবাসী রেমিট্যান্স নিয়ম ও WPS সুরক্ষার আওতায়।',
+  );
   String get holdToConfirm => _p('Hold to Confirm', 'চেপে ধরে নিশ্চিত করুন');
-  String get transferConfirmed => _p('Transfer Confirmed', 'পাঠানো নিশ্চিত হয়েছে');
+  String get transferConfirmed =>
+      _p('Transfer Confirmed', 'পাঠানো নিশ্চিত হয়েছে');
 
   // Stripe hand-off
   String get completePaymentOnStripe =>
       _p('Complete payment on Stripe', 'Stripe-এ পেমেন্ট শেষ করুন');
   String stripeHandoffBody(String name) => _p(
-        'Finish the card payment in the browser to send this remittance to $name. This screen updates on its own as soon as Stripe confirms it.',
-        '$name-কে টাকা পাঠাতে ব্রাউজারে কার্ড পেমেন্ট শেষ করুন। Stripe নিশ্চিত করলেই এই পাতা নিজে থেকে বদলে যাবে।',
-      );
+    'Finish the card payment in the browser to send this remittance to $name. This screen updates on its own as soon as Stripe confirms it.',
+    '$name-কে টাকা পাঠাতে ব্রাউজারে কার্ড পেমেন্ট শেষ করুন। Stripe নিশ্চিত করলেই এই পাতা নিজে থেকে বদলে যাবে।',
+  );
   String get reopenStripePage =>
       _p('Reopen Stripe page', 'Stripe পাতা আবার খুলুন');
   String get checkingWithStripe =>
@@ -532,25 +585,25 @@ class AppStrings {
   String get remittanceSuccessful =>
       _p('Remittance Successful!', 'টাকা পাঠানো হয়েছে!');
   String creditedTo(String amount, String name, String provider) => _p(
-        '$amount has been credited to $name ($provider).',
-        '$amount $name ($provider) এর কাছে পৌঁছে গেছে।',
-      );
+    '$amount has been credited to $name ($provider).',
+    '$amount $name ($provider) এর কাছে পৌঁছে গেছে।',
+  );
   String get appearsInHistory => _p(
-        'It now appears in your Transaction History.',
-        'এটি এখন আপনার লেনদেনের হিসাবে আছে।',
-      );
+    'It now appears in your Transaction History.',
+    'এটি এখন আপনার লেনদেনের হিসাবে আছে।',
+  );
   String get gatewayNoCheckoutPage => _p(
-        'The gateway did not return a Stripe Checkout page.',
-        'Stripe-এর পেমেন্ট পাতা পাওয়া যায়নি।',
-      );
+    'The gateway did not return a Stripe Checkout page.',
+    'Stripe-এর পেমেন্ট পাতা পাওয়া যায়নি।',
+  );
   String get couldNotOpenCheckout => _p(
-        'Could not open the Stripe Checkout page on this device. Please make sure a browser is installed.',
-        'এই ফোনে Stripe-এর পেমেন্ট পাতা খোলা যায়নি। ব্রাউজার আছে কিনা দেখুন।',
-      );
+    'Could not open the Stripe Checkout page on this device. Please make sure a browser is installed.',
+    'এই ফোনে Stripe-এর পেমেন্ট পাতা খোলা যায়নি। ব্রাউজার আছে কিনা দেখুন।',
+  );
   String get paymentNotCompleted => _p(
-        'Payment was not completed, so nothing was sent.',
-        'পেমেন্ট শেষ হয়নি, তাই কোনো টাকা যায়নি।',
-      );
+    'Payment was not completed, so nothing was sent.',
+    'পেমেন্ট শেষ হয়নি, তাই কোনো টাকা যায়নি।',
+  );
 
   // ---------------------------------------------------------------------------
   // Receive & inter-card transfer
@@ -558,13 +611,11 @@ class AppStrings {
   String get receiveTitle =>
       _p('Receive Remittance & Funds', 'টাকা গ্রহণ করুন');
   String get receiveSubtitle => _p(
-        'Scan QR code or use account IBAN for direct transfer',
-        'QR কোড স্ক্যান করুন বা IBAN দিয়ে সরাসরি টাকা নিন',
-      );
-  String get verifiedMerchantId => _p(
-        'Probashi Verified Merchant & Personal ID',
-        'প্রবাসী যাচাই করা আইডি',
-      );
+    'Scan QR code or use account IBAN for direct transfer',
+    'QR কোড স্ক্যান করুন বা IBAN দিয়ে সরাসরি টাকা নিন',
+  );
+  String get verifiedMerchantId =>
+      _p('Probashi Verified Merchant & Personal ID', 'প্রবাসী যাচাই করা আইডি');
   String get accountId => _p('Account ID', 'একাউন্ট আইডি');
   String get remittanceIban => _p('REMITTANCE IBAN', 'রেমিট্যান্স IBAN');
   String get shareInfo => _p('Share Info', 'তথ্য শেয়ার করুন');
@@ -572,26 +623,25 @@ class AppStrings {
   String copiedToClipboard(String label) =>
       _p('$label copied to clipboard!', '$label কপি হয়েছে!');
 
-  String get interCardTransfer => _p('Inter-Card Transfer', 'কার্ড থেকে কার্ডে');
+  String get interCardTransfer =>
+      _p('Inter-Card Transfer', 'কার্ড থেকে কার্ডে');
   String get interCardSubtitle => _p(
-        'Instant zero-fee transfer between your linked accounts',
-        'আপনার নিজের একাউন্টগুলোর মধ্যে ফ্রি ও সাথে সাথে টাকা সরান',
-      );
+    'Instant zero-fee transfer between your linked accounts',
+    'আপনার নিজের একাউন্টগুলোর মধ্যে ফ্রি ও সাথে সাথে টাকা সরান',
+  );
   String get fromAccount => _p('From Account', 'যে একাউন্ট থেকে');
   String get toAccount => _p('To Account', 'যে একাউন্টে');
   String get confirmTransfer => _p('Confirm Transfer', 'নিশ্চিত করুন');
   String get sameCardTransfer => _p(
-        'Choose two different cards to transfer between',
-        'আলাদা দুটি কার্ড বেছে নিন',
-      );
-  String get enterValidTransferAmount => _p(
-        'Please enter a valid transfer amount',
-        'সঠিক পরিমাণ লিখুন',
-      );
+    'Choose two different cards to transfer between',
+    'আলাদা দুটি কার্ড বেছে নিন',
+  );
+  String get enterValidTransferAmount =>
+      _p('Please enter a valid transfer amount', 'সঠিক পরিমাণ লিখুন');
   String get insufficientSourceBalance => _p(
-        'Insufficient balance on selected source card',
-        'এই কার্ডে পর্যাপ্ত টাকা নেই',
-      );
+    'Insufficient balance on selected source card',
+    'এই কার্ডে পর্যাপ্ত টাকা নেই',
+  );
 
   // ---------------------------------------------------------------------------
   // Log in, register and email verification
@@ -620,9 +670,9 @@ class AppStrings {
       _p('Forgot password?', 'পাসওয়ার্ড ভুলে গেছেন?');
   String get authResetTitle => _p('Reset password', 'পাসওয়ার্ড রিসেট করুন');
   String get authResetSubtitle => _p(
-        "Enter your account's email and we will send you a 6-digit code",
-        'অ্যাকাউন্টের ইমেইল লিখুন, আমরা একটি ৬-সংখ্যার কোড পাঠাব',
-      );
+    "Enter your account's email and we will send you a 6-digit code",
+    'অ্যাকাউন্টের ইমেইল লিখুন, আমরা একটি ৬-সংখ্যার কোড পাঠাব',
+  );
   String get authSendCode => _p('Send code', 'কোড পাঠান');
   String get authNewPassword => _p('New password', 'নতুন পাসওয়ার্ড');
   String get authNewPasswordHint =>
@@ -630,13 +680,13 @@ class AppStrings {
   String get authSavePassword =>
       _p('Save new password', 'নতুন পাসওয়ার্ড সেভ করুন');
   String get authPasswordChanged => _p(
-        'Password changed. You are logged in.',
-        'পাসওয়ার্ড বদলানো হয়েছে। আপনি লগ ইন করেছেন।',
-      );
+    'Password changed. You are logged in.',
+    'পাসওয়ার্ড বদলানো হয়েছে। আপনি লগ ইন করেছেন।',
+  );
   String get authSamePassword => _p(
-        'Choose a password different from your old one',
-        'পুরনো পাসওয়ার্ড থেকে আলাদা পাসওয়ার্ড দিন',
-      );
+    'Choose a password different from your old one',
+    'পুরনো পাসওয়ার্ড থেকে আলাদা পাসওয়ার্ড দিন',
+  );
 
   String get authLogIn => _p('Log in', 'লগ ইন');
   String get authRegister => _p('Register', 'রেজিস্টার করুন');
@@ -658,70 +708,66 @@ class AppStrings {
   String get authVerifyTitle =>
       _p('Verify your email', 'আপনার ইমেইল যাচাই করুন');
   String authCodeSentTo(String email) => _p(
-        'We sent a 6-digit code to $email',
-        'আমরা $email-এ একটি ৬-সংখ্যার কোড পাঠিয়েছি',
-      );
+    'We sent a 6-digit code to $email',
+    'আমরা $email-এ একটি ৬-সংখ্যার কোড পাঠিয়েছি',
+  );
   String get authVerify => _p('Verify', 'যাচাই করুন');
   String get authResendCode => _p('Resend code', 'আবার কোড পাঠান');
   String authResendIn(int seconds) => _p(
-        'Resend code in ${seconds}s',
-        '$seconds সেকেন্ড পরে আবার পাঠাতে পারবেন',
-      );
+    'Resend code in ${seconds}s',
+    '$seconds সেকেন্ড পরে আবার পাঠাতে পারবেন',
+  );
   String get authCodeResent =>
       _p('A new code is on its way', 'নতুন কোড পাঠানো হয়েছে');
   String get authCodeLabel => _p('6-digit code', '৬-সংখ্যার কোড');
 
-  String get authEnterName => _p('Enter your full name', 'আপনার পুরো নাম লিখুন');
+  String get authEnterName =>
+      _p('Enter your full name', 'আপনার পুরো নাম লিখুন');
   String get authInvalidEmail =>
       _p('Enter a valid email address', 'সঠিক ইমেইল ঠিকানা লিখুন');
-  String get authEnterPassword =>
-      _p('Enter your password', 'পাসওয়ার্ড লিখুন');
+  String get authEnterPassword => _p('Enter your password', 'পাসওয়ার্ড লিখুন');
   String get authPasswordTooShort => _p(
-        'Password must be at least 6 characters',
-        'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে',
-      );
+    'Password must be at least 6 characters',
+    'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে',
+  );
   String get authPasswordsMismatch =>
       _p('Passwords do not match', 'দুটি পাসওয়ার্ড মিলছে না');
   String get authAcceptTerms => _p(
-        'Please agree to the Terms and Privacy Policy',
-        'শর্তাবলি ও গোপনীয়তা নীতিতে সম্মতি দিন',
-      );
+    'Please agree to the Terms and Privacy Policy',
+    'শর্তাবলি ও গোপনীয়তা নীতিতে সম্মতি দিন',
+  );
   String get authCodeIncomplete =>
       _p('Enter all 6 digits of the code', 'কোডের ৬টি সংখ্যাই লিখুন');
   String get authCodeInvalid => _p(
-        'That code is wrong or has expired',
-        'কোডটি ভুল অথবা মেয়াদ শেষ হয়ে গেছে',
-      );
+    'That code is wrong or has expired',
+    'কোডটি ভুল অথবা মেয়াদ শেষ হয়ে গেছে',
+  );
   String get authInvalidCredentials =>
       _p('Wrong email or password', 'ইমেইল বা পাসওয়ার্ড ভুল');
   String get authEmailNotConfirmed => _p(
-        'Verify your email first. We sent you a new code.',
-        'আগে ইমেইল যাচাই করুন। আমরা নতুন কোড পাঠিয়েছি।',
-      );
+    'Verify your email first. We sent you a new code.',
+    'আগে ইমেইল যাচাই করুন। আমরা নতুন কোড পাঠিয়েছি।',
+  );
   String get authAccountExists => _p(
-        'An account with this email already exists. Please log in.',
-        'এই ইমেইলে আগেই অ্যাকাউন্ট আছে। লগ ইন করুন।',
-      );
-  String get authWeakPassword => _p(
-        'Choose a stronger password',
-        'আরও শক্ত পাসওয়ার্ড দিন',
-      );
+    'An account with this email already exists. Please log in.',
+    'এই ইমেইলে আগেই অ্যাকাউন্ট আছে। লগ ইন করুন।',
+  );
+  String get authWeakPassword =>
+      _p('Choose a stronger password', 'আরও শক্ত পাসওয়ার্ড দিন');
   String get authTooManyAttempts => _p(
-        'Too many attempts. Wait a minute and try again.',
-        'অনেকবার চেষ্টা হয়েছে। এক মিনিট পরে আবার চেষ্টা করুন।',
-      );
+    'Too many attempts. Wait a minute and try again.',
+    'অনেকবার চেষ্টা হয়েছে। এক মিনিট পরে আবার চেষ্টা করুন।',
+  );
   String get authNetworkError => _p(
-        'Could not reach the server. Check your internet.',
-        'সার্ভারে পৌঁছানো যায়নি। ইন্টারনেট সংযোগ দেখুন।',
-      );
-  String authOAuthFailed(String provider) => _p(
-        'Could not open $provider sign-in',
-        '$provider লগ ইন খোলা যায়নি',
-      );
+    'Could not reach the server. Check your internet.',
+    'সার্ভারে পৌঁছানো যায়নি। ইন্টারনেট সংযোগ দেখুন।',
+  );
+  String authOAuthFailed(String provider) =>
+      _p('Could not open $provider sign-in', '$provider লগ ইন খোলা যায়নি');
   String get authGenericError => _p(
-        'Something went wrong. Please try again.',
-        'কোনো সমস্যা হয়েছে। আবার চেষ্টা করুন।',
-      );
+    'Something went wrong. Please try again.',
+    'কোনো সমস্যা হয়েছে। আবার চেষ্টা করুন।',
+  );
 
   // ---------------------------------------------------------------------------
   // Claiming a phone number (the address money is sent to)
@@ -729,9 +775,9 @@ class AppStrings {
   String get authPhoneTitle =>
       _p('Add your phone number', 'আপনার মোবাইল নম্বর দিন');
   String get authPhoneSubtitle => _p(
-        'People send you money using this number, so it has to be yours alone.',
-        'এই নম্বরে আপনাকে টাকা পাঠানো হবে, তাই এটি শুধু আপনার হতে হবে।',
-      );
+    'People send you money using this number, so it has to be yours alone.',
+    'এই নম্বরে আপনাকে টাকা পাঠানো হবে, তাই এটি শুধু আপনার হতে হবে।',
+  );
   String get authPhoneLabel => _p('Mobile number', 'মোবাইল নম্বর');
   String get authPhoneHint => _p('01712345678', '০১৭১২৩৪৫৬৭৮');
   String get authPhoneSave => _p('Save number', 'নম্বর সেভ করুন');
@@ -739,62 +785,60 @@ class AppStrings {
   String get authPhoneInvalid =>
       _p('Enter a valid mobile number', 'সঠিক মোবাইল নম্বর লিখুন');
   String get authPhoneTaken => _p(
-        'Another account already uses that number',
-        'এই নম্বরটি অন্য একটি অ্যাকাউন্টে ব্যবহার হচ্ছে',
-      );
+    'Another account already uses that number',
+    'এই নম্বরটি অন্য একটি অ্যাকাউন্টে ব্যবহার হচ্ছে',
+  );
   String get authPhoneSendCode => _p('Send code', 'কোড পাঠান');
   String authPhoneCodeSentTo(String phone) => _p(
-        'We sent a 6-digit code to $phone',
-        'আমরা $phone নম্বরে একটি ৬-সংখ্যার কোড পাঠিয়েছি',
-      );
+    'We sent a 6-digit code to $phone',
+    'আমরা $phone নম্বরে একটি ৬-সংখ্যার কোড পাঠিয়েছি',
+  );
   String get authPhoneChangeNumber => _p('Change number', 'নম্বর বদলান');
   String get authPhoneVerify => _p('Verify number', 'নম্বর যাচাই করুন');
   String get authPhoneVerified => _p('Number verified', 'নম্বর যাচাই হয়েছে');
   String get authPhoneSkip => _p('Skip for now', 'এখন থাক');
   String get authPhoneSkipNote => _p(
-        'You can look around without a verified number, but sending and '
-            'receiving money stays locked until you verify one.',
-        'নম্বর যাচাই ছাড়াও অ্যাপ দেখতে পারবেন, তবে টাকা পাঠানো ও গ্রহণ করা '
-            'বন্ধ থাকবে।',
-      );
+    'You can look around without a verified number, but sending and '
+        'receiving money stays locked until you verify one.',
+    'নম্বর যাচাই ছাড়াও অ্যাপ দেখতে পারবেন, তবে টাকা পাঠানো ও গ্রহণ করা '
+        'বন্ধ থাকবে।',
+  );
   String get authPhoneNotConfigured => _p(
-        'Phone verification is not set up yet. You can continue without it '
-            'for now.',
-        'ফোন যাচাই এখনো চালু হয়নি। আপাতত এটি ছাড়াই চালিয়ে যেতে পারেন।',
-      );
+    'Phone verification is not set up yet. You can continue without it '
+        'for now.',
+    'ফোন যাচাই এখনো চালু হয়নি। আপাতত এটি ছাড়াই চালিয়ে যেতে পারেন।',
+  );
   String get authPhoneCodeWrong => _p(
-        'That code is wrong or has expired',
-        'কোডটি ভুল অথবা মেয়াদ শেষ হয়ে গেছে',
-      );
+    'That code is wrong or has expired',
+    'কোডটি ভুল অথবা মেয়াদ শেষ হয়ে গেছে',
+  );
   String get authPhoneTooManyRequests => _p(
-        'Too many attempts from this device. Try again later.',
-        'এই ডিভাইস থেকে অনেকবার চেষ্টা হয়েছে। পরে আবার চেষ্টা করুন।',
-      );
+    'Too many attempts from this device. Try again later.',
+    'এই ডিভাইস থেকে অনেকবার চেষ্টা হয়েছে। পরে আবার চেষ্টা করুন।',
+  );
   String get authPhoneSmsUnavailable => _p(
-        'We cannot send an SMS to this number yet. Try again later, or skip '
-            'for now.',
-        'এই নম্বরে এখনো SMS পাঠানো যাচ্ছে না। পরে আবার চেষ্টা করুন, অথবা আপাতত '
-            'এড়িয়ে যান।',
-      );
+    'We cannot send an SMS to this number yet. Try again later, or skip '
+        'for now.',
+    'এই নম্বরে এখনো SMS পাঠানো যাচ্ছে না। পরে আবার চেষ্টা করুন, অথবা আপাতত '
+        'এড়িয়ে যান।',
+  );
   String get authPhoneCountryLabel => _p('Country', 'দেশ');
   String authPhoneInvalidLength(String digits, String example) => _p(
-        'Enter a number with $digits digits, like $example',
-        '$digits সংখ্যার নম্বর লিখুন, যেমন $example',
-      );
-  String authPhoneDigitCount(int typed, String digits) => _p(
-        '$typed / $digits digits',
-        '$typed / $digits সংখ্যা',
-      );
+    'Enter a number with $digits digits, like $example',
+    '$digits সংখ্যার নম্বর লিখুন, যেমন $example',
+  );
+  String authPhoneDigitCount(int typed, String digits) =>
+      _p('$typed / $digits digits', '$typed / $digits সংখ্যা');
   String get authPhoneCodeLabel => _p('Verification code', 'যাচাই কোড');
   String get authPhoneCodeHint => _p('6-digit code', '৬ সংখ্যার কোড');
   String get authPhoneCodeSent => _p('Code sent', 'কোড পাঠানো হয়েছে');
   String get authPhoneClearLabel => _p('Clear', 'মুছুন');
   String get authPhoneTestModeNote => _p(
-        'Testing build: use a test number from the Firebase console with its '
-            'code. No SMS is sent.',
-        'টেস্টিং বিল্ড: Firebase কনসোলের টেস্ট নম্বর ও তার কোড দিন। কোনো SMS '
-            'পাঠানো হয় না।',
-      );
+    'Testing build: use a test number from the Firebase console with its '
+        'code. No SMS is sent.',
+    'টেস্টিং বিল্ড: Firebase কনসোলের টেস্ট নম্বর ও তার কোড দিন। কোনো SMS '
+        'পাঠানো হয় না।',
+  );
   String phoneCountryName(String iso) {
     switch (iso) {
       case 'BD':
@@ -823,10 +867,24 @@ class AppStrings {
   // ---------------------------------------------------------------------------
   String comingSoon(String feature) =>
       _p('$feature is coming soon', '$feature শীঘ্রই আসছে');
+
+  // Names of the features that only say "coming soon" for now. They match the
+  // labels on the tiles that open them.
+  String get featureTransactionDetails =>
+      _p('Transaction Details', 'লেনদেনের বিবরণ');
+  String get featureTermsPrivacy =>
+      _p('Terms and Privacy Policy', 'শর্তাবলি ও গোপনীয়তা নীতি');
+  String get featurePassportVisa => _p('Passport & Visa', 'পাসপোর্ট ও ভিসা');
+  String get featureBmetCard => _p('BMET Smart Card', 'বিএমইটি স্মার্ট কার্ড');
+  String get featureBiometric => _p('Touch / Face ID', 'টাচ/ফেস আইডি');
+  String get featureChangePin => _p('Change PIN', 'পিন পরিবর্তন');
+  String get featureLinkedDevices => _p('Linked Devices', 'লিংকড ডিভাইস');
+  String get featureNotificationManagement =>
+      _p('Notification Management', 'নোটিফিকেশন ম্যানেজমেন্ট');
   String get remittanceFailed => _p(
-        'Failed to complete remittance. Please try again.',
-        'টাকা পাঠানো যায়নি। আবার চেষ্টা করুন।',
-      );
+    'Failed to complete remittance. Please try again.',
+    'টাকা পাঠানো যায়নি। আবার চেষ্টা করুন।',
+  );
 }
 
 /// Publishes the active [AppStrings] to the whole widget tree.

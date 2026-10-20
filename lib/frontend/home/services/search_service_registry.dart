@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../crChecker/cr_checker_view.dart';
+import '../../documents/document_scan_view.dart';
 import '../../documents/saved_documents_portal_view.dart';
 import '../../notice/notice_view.dart';
 import '../../payment/controllers/payment_controller.dart';
@@ -16,6 +16,7 @@ class SearchServiceRegistry {
   static List<SearchActionItem> getServices({
     void Function(int tabIndex)? onNavigateTab,
     VoidCallback? onOpenMenu,
+    VoidCallback? onOpenProfile,
   }) {
     return [
       SearchActionItem(
@@ -44,7 +45,10 @@ class SearchServiceRegistry {
             Navigator.pop(context);
             onNavigateTab(2);
           } else {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DocumentScanView()),
+            );
           }
         },
       ),
@@ -78,7 +82,10 @@ class SearchServiceRegistry {
             Navigator.pop(context);
             onNavigateTab(2);
           } else {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DocumentScanView()),
+            );
           }
         },
       ),
@@ -193,38 +200,6 @@ class SearchServiceRegistry {
         },
       ),
       SearchActionItem(
-        id: 'departure_checklist',
-        titleEn: 'Pre-Departure Checklist',
-        titleBn: 'যাত্রা পূর্ব চেকলিস্ট',
-        subtitleEn: 'Essential steps before traveling abroad',
-        subtitleBn: 'বিদেশ যাওয়ার আগে প্রয়োজনীয় প্রস্তুতি',
-        icon: Icons.checklist_rounded,
-        keywords: [
-          'checklist',
-          'departure',
-          'flight',
-          'travel',
-          'preparation',
-          'bmet',
-          'medical',
-          'চেকলিস্ট',
-          'প্রস্তুতি',
-          'যাত্রা',
-          'চেক',
-          'cheklist',
-          'bidesh jatra',
-          'travel checklist',
-        ],
-        action: (context) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const CrCheckerView(),
-            ),
-          );
-        },
-      ),
-      SearchActionItem(
         id: 'profile_settings',
         titleEn: 'Profile & Settings',
         titleBn: 'প্রোফাইল ও সেটিংস',
@@ -248,14 +223,21 @@ class SearchServiceRegistry {
           'security',
         ],
         action: (context) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ProfileView(
-                controller: ProfileController.instance,
+          if (onOpenProfile != null) {
+            // Close the search first, then open the profile with the shell's
+            // handlers so every row on it does something.
+            Navigator.pop(context);
+            onOpenProfile();
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProfileView(
+                  controller: ProfileController.instance,
+                ),
               ),
-            ),
-          );
+            );
+          }
         },
       ),
     ];

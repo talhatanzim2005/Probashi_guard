@@ -1,14 +1,16 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
+import '../../widget/coming_soon.dart';
+import '../../widget/ink_surface.dart';
 import '../crChecker/controllers/checklist_controller.dart';
 import '../notice/controllers/notice_controller.dart';
 import 'app_search_view.dart';
 
 class HomeView extends StatefulWidget {
   final VoidCallback? onNavigateToNotice;
-  final VoidCallback? onNavigateToCrChecker;
 
   /// Opens the document scanner: checking a paper for fraud starts with a scan.
   final VoidCallback? onNavigateToFraudChecker;
@@ -31,7 +33,6 @@ class HomeView extends StatefulWidget {
   const HomeView({
     super.key,
     this.onNavigateToNotice,
-    this.onNavigateToCrChecker,
     this.onNavigateToFraudChecker,
     this.onOpenSavedDocuments,
     this.onSearchTap,
@@ -59,6 +60,7 @@ class _NoticeItem {
 class _HomeViewState extends State<HomeView> {
   // 1. Checklist State
   bool _isChecklistExpanded = false;
+
   /// Shared with the other checklist views and saved across launches.
   final ChecklistController _checklistController = ChecklistController.instance;
   final GlobalKey _checklistCardKey = GlobalKey();
@@ -95,8 +97,7 @@ class _HomeViewState extends State<HomeView> {
   ];
 
   int get _completedCount => _checklistController.completed;
-  double get _progressPercent =>
-      _checklistController.progress;
+  double get _progressPercent => _checklistController.progress;
 
   /// Index of the first unfinished item, or -1 when everything is done.
   int get _nextIndex => _checklistController.nextIndex;
@@ -116,7 +117,8 @@ class _HomeViewState extends State<HomeView> {
   /// Protection status shown in the greeting badge. Driven by real progress so
   /// the app never claims "Protected" while most checks are still open.
   ({String label, IconData icon, Color color}) _statusFor(AppStrings s) {
-    if (_checklistController.total > 0 && _completedCount == _checklistController.total) {
+    if (_checklistController.total > 0 &&
+        _completedCount == _checklistController.total) {
       return (
         label: s.fullyProtected,
         icon: Icons.verified_user_rounded,
@@ -157,7 +159,9 @@ class _HomeViewState extends State<HomeView> {
   void _startNoticeAutoScroll() {
     _noticeSliderTimer?.cancel();
     if (!_noticeAutoPlay) return;
-    _noticeSliderTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) {
+    _noticeSliderTimer = Timer.periodic(const Duration(milliseconds: 3500), (
+      _,
+    ) {
       if (mounted && _noticePageController.hasClients) {
         final count = _sliderItemCount;
         if (count == 0) return;
@@ -194,8 +198,9 @@ class _HomeViewState extends State<HomeView> {
   @override
   void dispose() {
     _checklistController.removeListener(_onChecklistChanged);
-    _checklistController.focusRequests
-        .removeListener(_onChecklistFocusRequested);
+    _checklistController.focusRequests.removeListener(
+      _onChecklistFocusRequested,
+    );
     _noticeSliderTimer?.cancel();
     _noticePageController.dispose();
     super.dispose();
@@ -400,6 +405,17 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
+  /// Opens the Notices tab. If this screen was built without a way there, the
+  /// tap still answers.
+  void _openNotices() {
+    final open = widget.onNavigateToNotice;
+    if (open != null) {
+      open();
+    } else {
+      showComingSoon(context, AppStrings.of(context).menuNotices);
+    }
+  }
+
   // --- 1. Hero Card Builder ---
   Widget _buildHeroChecklistCard() {
     final s = AppStrings.of(context);
@@ -408,10 +424,7 @@ class _HomeViewState extends State<HomeView> {
       decoration: BoxDecoration(
         color: AppColors.cloudDancer,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.royalBlue,
-          width: 1.5,
-        ),
+        border: Border.all(color: AppColors.royalBlue, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: AppColors.royalBlue.withValues(alpha: 0.08),
@@ -420,223 +433,235 @@ class _HomeViewState extends State<HomeView> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Card Header
-          InkWell(
-            onTap: () {
-              setState(() {
-                _isChecklistExpanded = !_isChecklistExpanded;
-              });
-            },
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          s.checklistTitle,
-                          style: const TextStyle(
-                            color: AppColors.royalBlue,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            height: 1.25,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Dynamic summary badge (e.g. "3/8 Done")
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _completedCount == _checklistController.total
-                              ? AppColors.emeraldGreen
-                              : AppColors.emeraldGreen.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: AppColors.emeraldGreen,
-                            width: 1.2,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.task_alt_rounded,
-                              size: 13,
-                              color: _completedCount == _checklistController.total
-                                  ? AppColors.cloudDancer
-                                  : AppColors.emeraldGreen,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              s.checklistDone(
-                                  _completedCount, _checklistController.total),
-                              style: TextStyle(
-                                color: _completedCount == _checklistController.total
-                                    ? AppColors.cloudDancer
-                                    : AppColors.emeraldGreen,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          s.checklistSubtitle,
-                          style: TextStyle(
-                            color: AppColors.inkMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Row(
-                        children: [
-                          Text(
-                            s.viewDetails,
-                            style: const TextStyle(
-                              color: AppColors.royalBlue,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            size: 16,
-                            color: AppColors.royalBlue,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
+      // The header's ripple is drawn on this Material, above the card's fill.
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Card Header
+            InkWell(
+              onTap: () {
+                setState(() {
+                  _isChecklistExpanded = !_isChecklistExpanded;
+                });
+              },
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
               ),
-            ),
-          ),
-
-          const Divider(
-            height: 1,
-            thickness: 1,
-            color: Color(0x221A4B9C),
-          ),
-
-          // Dynamic Progress Bar & Ratio
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16.0, 14.0, 16.0, 8.0),
-            child: Semantics(
-              label: s.departureReadiness,
-              // toInt() floors on purpose: never overstate readiness.
-              value: '${(_progressPercent * 100).toInt()}%',
-              child: ExcludeSemantics(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          s.departureReadiness,
-                          style: const TextStyle(
-                            color: AppColors.inkMuted,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
+                        Expanded(
+                          child: Text(
+                            s.checklistTitle,
+                            style: const TextStyle(
+                              color: AppColors.royalBlue,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              height: 1.25,
+                            ),
                           ),
                         ),
-                        Text(
-                          '${(_progressPercent * 100).toInt()}%',
-                          style: const TextStyle(
-                            color: AppColors.ink,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
+                        const SizedBox(width: 8),
+                        // Dynamic summary badge (e.g. "3/8 Done")
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _completedCount == _checklistController.total
+                                ? AppColors.emeraldGreen
+                                : AppColors.emeraldGreen.withValues(
+                                    alpha: 0.12,
+                                  ),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: AppColors.emeraldGreen,
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.task_alt_rounded,
+                                size: 13,
+                                color:
+                                    _completedCount ==
+                                        _checklistController.total
+                                    ? AppColors.cloudDancer
+                                    : AppColors.emeraldGreen,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                s.checklistDone(
+                                  _completedCount,
+                                  _checklistController.total,
+                                ),
+                                style: TextStyle(
+                                  color:
+                                      _completedCount ==
+                                          _checklistController.total
+                                      ? AppColors.cloudDancer
+                                      : AppColors.emeraldGreen,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween<double>(end: _progressPercent),
-                        duration: const Duration(milliseconds: 350),
-                        curve: Curves.easeOut,
-                        builder: (context, value, _) => LinearProgressIndicator(
-                          value: value,
-                          minHeight: 7,
-                          backgroundColor:
-                              AppColors.royalBlue.withValues(alpha: 0.12),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppColors.emeraldGreen,
+                    const SizedBox(height: 8),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            s.checklistSubtitle,
+                            style: TextStyle(
+                              color: AppColors.inkMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Row(
+                          children: [
+                            Text(
+                              s.viewDetails,
+                              style: const TextStyle(
+                                color: AppColors.royalBlue,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 16,
+                              color: AppColors.royalBlue,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ),
-          ),
 
-          // Interactive Checkable List Items
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Column(
-              children: [
-                // Pending items first; top 3 when collapsed, all when expanded.
-                for (final i in _visibleIndexes) _buildChecklistRow(i),
-              ],
-            ),
-          ),
+            const Divider(height: 1, thickness: 1, color: Color(0x221A4B9C)),
 
-          // Expand / Collapse Action Button
-          Center(
-            child: TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  _isChecklistExpanded = !_isChecklistExpanded;
-                });
-              },
-              icon: Icon(
-                _isChecklistExpanded
-                    ? Icons.keyboard_arrow_up_rounded
-                    : Icons.keyboard_arrow_down_rounded,
-                color: AppColors.royalBlue,
-                size: 18,
-              ),
-              label: Text(
-                _isChecklistExpanded
-                    ? s.showFewerItems
-                    : s.showAllItems(_checklistController.total),
-                style: const TextStyle(
-                  color: AppColors.royalBlue,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+            // Dynamic Progress Bar & Ratio
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16.0, 14.0, 16.0, 8.0),
+              child: Semantics(
+                label: s.departureReadiness,
+                // toInt() floors on purpose: never overstate readiness.
+                value: '${(_progressPercent * 100).toInt()}%',
+                child: ExcludeSemantics(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            s.departureReadiness,
+                            style: const TextStyle(
+                              color: AppColors.inkMuted,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            '${(_progressPercent * 100).toInt()}%',
+                            style: const TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween<double>(end: _progressPercent),
+                          duration: const Duration(milliseconds: 350),
+                          curve: Curves.easeOut,
+                          builder: (context, value, _) =>
+                              LinearProgressIndicator(
+                                value: value,
+                                minHeight: 7,
+                                backgroundColor: AppColors.royalBlue.withValues(
+                                  alpha: 0.12,
+                                ),
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  AppColors.emeraldGreen,
+                                ),
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 4),
-        ],
+
+            // Interactive Checkable List Items
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                children: [
+                  // Pending items first; top 3 when collapsed, all when expanded.
+                  for (final i in _visibleIndexes) _buildChecklistRow(i),
+                ],
+              ),
+            ),
+
+            // Expand / Collapse Action Button
+            Center(
+              child: TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _isChecklistExpanded = !_isChecklistExpanded;
+                  });
+                },
+                icon: Icon(
+                  _isChecklistExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: AppColors.royalBlue,
+                  size: 18,
+                ),
+                label: Text(
+                  _isChecklistExpanded
+                      ? s.showFewerItems
+                      : s.showAllItems(_checklistController.total),
+                  style: const TextStyle(
+                    color: AppColors.royalBlue,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ),
       ),
     );
   }
@@ -656,99 +681,93 @@ class _HomeViewState extends State<HomeView> {
         hint: s.markAsDoneHint,
         onTap: () => _toggleChecklistItem(index),
         excludeSemantics: true,
-        child: InkWell(
+        child: InkSurface(
           onTap: () => _toggleChecklistItem(index),
           borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: isDone
+                ? AppColors.emeraldGreen.withValues(alpha: 0.06)
+                : AppColors.cloudDancer,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
               color: isDone
-                  ? AppColors.emeraldGreen.withValues(alpha: 0.06)
-                  : AppColors.cloudDancer,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isDone
-                    ? AppColors.emeraldGreen.withValues(alpha: 0.35)
-                    : isNext
-                        ? AppColors.royalBlue.withValues(alpha: 0.5)
-                        : AppColors.royalBlue.withValues(alpha: 0.16),
-                width: 1.0,
-              ),
+                  ? AppColors.emeraldGreen.withValues(alpha: 0.35)
+                  : isNext
+                  ? AppColors.royalBlue.withValues(alpha: 0.5)
+                  : AppColors.royalBlue.withValues(alpha: 0.16),
+              width: 1.0,
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Checkbox icon
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 20,
-                  height: 20,
-                  margin: const EdgeInsets.only(top: 1),
-                  decoration: BoxDecoration(
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Checkbox icon
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 20,
+                height: 20,
+                margin: const EdgeInsets.only(top: 1),
+                decoration: BoxDecoration(
+                  color: isDone
+                      ? AppColors.emeraldGreen
+                      : AppColors.cloudDancer,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
                     color: isDone
                         ? AppColors.emeraldGreen
-                        : AppColors.cloudDancer,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: isDone
-                          ? AppColors.emeraldGreen
-                          : AppColors.royalBlue.withValues(alpha: 0.5),
-                      width: 1.5,
-                    ),
+                        : AppColors.royalBlue.withValues(alpha: 0.5),
+                    width: 1.5,
                   ),
-                  child: isDone
-                      ? const Icon(
-                          Icons.check,
-                          size: 14,
-                          color: AppColors.cloudDancer,
-                        )
-                      : null,
                 ),
-                const SizedBox(width: 10),
-                // Checklist text (no strikethrough: the green check already
-                // says "done", and crossed-out text reads as "dismissed").
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (isNext) ...[
-                        Text(
-                          s.nextStep,
-                          style: const TextStyle(
-                            color: AppColors.royalBlue,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                      ],
+                child: isDone
+                    ? const Icon(
+                        Icons.check,
+                        size: 14,
+                        color: AppColors.cloudDancer,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              // Checklist text (no strikethrough: the green check already
+              // says "done", and crossed-out text reads as "dismissed").
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isNext) ...[
                       Text(
-                        text.title,
-                        style: TextStyle(
-                          color: isDone
-                              ? AppColors.inkMuted
-                              : AppColors.ink,
-                          fontSize: 13,
-                          fontWeight: isDone
-                              ? FontWeight.w500
-                              : FontWeight.w700,
-                          height: 1.25,
+                        s.nextStep,
+                        style: const TextStyle(
+                          color: AppColors.royalBlue,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        text.subtitle,
-                        style: const TextStyle(
-                          color: AppColors.inkMuted,
-                          fontSize: 12,
-                        ),
-                      ),
                     ],
-                  ),
+                    Text(
+                      text.title,
+                      style: TextStyle(
+                        color: isDone ? AppColors.inkMuted : AppColors.ink,
+                        fontSize: 13,
+                        fontWeight: isDone ? FontWeight.w500 : FontWeight.w700,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      text.subtitle,
+                      style: const TextStyle(
+                        color: AppColors.inkMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -763,7 +782,9 @@ class _HomeViewState extends State<HomeView> {
       builder: (context, _) {
         final dynamicNotices = _noticeController.latest;
         final bool hasDynamic = dynamicNotices.isNotEmpty;
-        final int itemCount = hasDynamic ? dynamicNotices.length : _notices.length;
+        final int itemCount = hasDynamic
+            ? dynamicNotices.length
+            : _notices.length;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -790,7 +811,7 @@ class _HomeViewState extends State<HomeView> {
                   ],
                 ),
                 InkWell(
-                  onTap: widget.onNavigateToNotice,
+                  onTap: _openNotices,
                   child: Row(
                     children: [
                       Text(
@@ -815,8 +836,15 @@ class _HomeViewState extends State<HomeView> {
 
             // Carousel PageView (auto-slides every 3.5s; person can swipe,
             // use the arrows / dots, or pause the auto-slide)
+            // A page view cannot size itself to its cards, so the height
+            // follows the system text size: tag line plus two message lines.
             SizedBox(
-              height: 86,
+              height: math.max(
+                86.0,
+                26 +
+                    MediaQuery.textScalerOf(context).scale(10.5) * 1.45 +
+                    MediaQuery.textScalerOf(context).scale(12) * 2.6,
+              ),
               child: PageView.builder(
                 controller: _noticePageController,
                 itemCount: itemCount,
@@ -843,93 +871,93 @@ class _HomeViewState extends State<HomeView> {
                     tagText = notice.sourceName.toUpperCase();
                     messageText = notice.title;
                   } else {
-                    final fallbackText = AppStrings.of(context).noticeSlides[index % AppStrings.of(context).noticeSlides.length];
+                    final fallbackText =
+                        AppStrings.of(context).noticeSlides[index %
+                            AppStrings.of(context).noticeSlides.length];
                     tagText = fallbackText.tag;
                     messageText = fallbackText.message;
                   }
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                    child: InkWell(
-                      onTap: widget.onNavigateToNotice,
+                    child: InkSurface(
+                      onTap: _openNotices,
                       borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14.0,
-                          vertical: 10.0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14.0,
+                        vertical: 10.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: style.backgroundColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: style.accentColor.withValues(alpha: 0.35),
+                          width: 1.2,
                         ),
-                        decoration: BoxDecoration(
-                          color: style.backgroundColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: style.accentColor.withValues(alpha: 0.35),
-                            width: 1.2,
+                        boxShadow: [
+                          BoxShadow(
+                            color: style.accentColor.withValues(alpha: 0.05),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: style.accentColor.withValues(alpha: 0.05),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
+                        ],
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: style.accentColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                          ],
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: style.accentColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                style.icon,
-                                color: style.accentColor,
-                                size: 18,
-                              ),
+                            child: Icon(
+                              style.icon,
+                              color: style.accentColor,
+                              size: 18,
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        tagText,
-                                        style: TextStyle(
-                                          color: style.accentColor,
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.6,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Icon(
-                                        Icons.arrow_forward_ios_rounded,
-                                        size: 9,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      tagText,
+                                      style: TextStyle(
                                         color: style.accentColor,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.6,
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    messageText,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: AppColors.ink,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      height: 1.25,
                                     ),
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 9,
+                                      color: style.accentColor,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  messageText,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.ink,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.25,
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -954,7 +982,10 @@ class _HomeViewState extends State<HomeView> {
                   iconSize: 22,
                   color: AppColors.royalBlue,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
                 ),
                 Expanded(
                   child: Row(
@@ -967,8 +998,10 @@ class _HomeViewState extends State<HomeView> {
                         iconSize: 24,
                         color: AppColors.royalBlue,
                         padding: EdgeInsets.zero,
-                        constraints:
-                            const BoxConstraints(minWidth: 36, minHeight: 36),
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
                       ),
                       ...List.generate(itemCount, (index) {
                         final isActive = _currentNoticePage == index;
@@ -988,7 +1021,9 @@ class _HomeViewState extends State<HomeView> {
                               decoration: BoxDecoration(
                                 color: isActive
                                     ? AppColors.royalBlue
-                                    : AppColors.royalBlue.withValues(alpha: 0.22),
+                                    : AppColors.royalBlue.withValues(
+                                        alpha: 0.22,
+                                      ),
                                 borderRadius: BorderRadius.circular(3),
                               ),
                             ),
@@ -1002,8 +1037,10 @@ class _HomeViewState extends State<HomeView> {
                         iconSize: 24,
                         color: AppColors.royalBlue,
                         padding: EdgeInsets.zero,
-                        constraints:
-                            const BoxConstraints(minWidth: 36, minHeight: 36),
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
                       ),
                     ],
                   ),
@@ -1044,7 +1081,9 @@ class _HomeViewState extends State<HomeView> {
                 label: s.savedDocuments,
                 borderColor: AppColors.royalBlue.withValues(alpha: 0.22),
                 textColor: AppColors.royalBlue,
-                onTap: widget.onOpenSavedDocuments ?? () {},
+                onTap:
+                    widget.onOpenSavedDocuments ??
+                    () => showComingSoon(context, s.savedDocuments),
               ),
             ),
             const SizedBox(width: 12),
@@ -1057,7 +1096,9 @@ class _HomeViewState extends State<HomeView> {
                 label: s.menuFraudChecker,
                 borderColor: AppColors.royalBlue.withValues(alpha: 0.22),
                 textColor: AppColors.royalBlue,
-                onTap: widget.onNavigateToFraudChecker ?? () {},
+                onTap:
+                    widget.onNavigateToFraudChecker ??
+                    () => showComingSoon(context, s.menuFraudChecker),
               ),
             ),
           ],
@@ -1086,58 +1127,49 @@ class _QuickFeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return InkSurface(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: Container(
-        // minHeight (not a fixed height) so larger fonts never overflow.
-        alignment: Alignment.center,
-        constraints: const BoxConstraints(minHeight: 92),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.cloudDancer,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: borderColor,
-            width: 1.2,
+      // minHeight (not a fixed height) so larger fonts never overflow.
+      alignment: Alignment.center,
+      constraints: const BoxConstraints(minHeight: 92),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.cloudDancer,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.royalBlue.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.royalBlue.withValues(alpha: 0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: 24,
-              ),
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

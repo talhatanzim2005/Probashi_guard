@@ -6,7 +6,6 @@ import 'firebase_options.dart';
 import 'frontend/auth/auth_session.dart';
 import 'frontend/auth/phone_setup_view.dart';
 import 'frontend/crChecker/controllers/checklist_controller.dart';
-import 'frontend/crChecker/cr_checker_view.dart';
 import 'frontend/documents/document_scan_view.dart';
 import 'frontend/documents/saved_documents_portal_view.dart';
 import 'frontend/home/app_search_view.dart';
@@ -17,12 +16,14 @@ import 'frontend/payment/controllers/payment_controller.dart';
 import 'frontend/payment/repository/payment_local_store.dart';
 import 'frontend/payment/payment_view.dart';
 import 'frontend/profile/controllers/profile_controller.dart';
+import 'frontend/prohori/prohori_chat_view.dart';
 import 'frontend/profile/profile_view.dart';
 import 'l10n/app_strings.dart';
 import 'l10n/language_controller.dart';
 import 'theme/app_colors.dart';
 import 'widget/app_bar.dart';
 import 'widget/bottom_navigation_bar.dart';
+import 'widget/coming_soon.dart';
 import 'splash_view.dart';
 
 // Override for another project with:
@@ -63,7 +64,9 @@ Future<void> _initSupabase() async {
     // ignore: deprecated_member_use
     await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseKey);
   } catch (e) {
-    debugPrint('[main] Supabase unavailable; login and the vault are disabled: $e');
+    debugPrint(
+      '[main] Supabase unavailable; login and the vault are disabled: $e',
+    );
   }
 }
 
@@ -127,9 +130,9 @@ class ProbashiGuardApp extends StatelessWidget {
         // Normal text is #040303 unless a widget sets its own colour, so new
         // Text() does not fall back to Material's black87.
         textTheme: ThemeData.light().textTheme.apply(
-              bodyColor: AppColors.ink,
-              displayColor: AppColors.ink,
-            ),
+          bodyColor: AppColors.ink,
+          displayColor: AppColors.ink,
+        ),
       ),
       home: home ?? const SplashView(),
     );
@@ -153,13 +156,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     setState(() {
       _currentIndex = index;
     });
-  }
-
-  void _openCrChecker() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const CrCheckerView()),
-    );
   }
 
   /// Brings the person to the checklist card on Home, from anywhere (the
@@ -193,6 +189,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     );
   }
 
+  /// The AI assistant, from the side menu.
+  void _openProhori() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProhoriChatView()),
+    );
+  }
+
   /// Profile > Update Phone Number: the same verify screen as after login,
   /// pushed on top of the profile so a verified number comes back to it.
   void _openPhoneSetup() {
@@ -219,20 +223,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         builder: (_) => AppSearchView(
           onNavigateTab: _onTabSelected,
           onOpenMenu: () => _scaffoldKey.currentState?.openEndDrawer(),
+          // The profile needs the shell's own handler for what its rows do
+          // (open a screen, change the phone, log out).
+          onOpenProfile: _openProfile,
         ),
       ),
     );
   }
 
-  void _comingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(AppStrings.of(context).comingSoon(feature)),
-        backgroundColor: AppColors.royalBlue,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
+  void _comingSoon(String feature) => showComingSoon(context, feature);
 
   /// Which menu item is highlighted for the current bottom-bar tab.
   MenuDestination get _selectedDestination {
@@ -258,23 +257,23 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         _onTabSelected(2);
       case MenuDestination.notices:
         _onTabSelected(3);
-      case MenuDestination.profile:
-        _openProfile();
+      case MenuDestination.prohori:
+        _openProhori();
       case MenuDestination.fraudChecker:
         _openFraudChecker();
       case MenuDestination.complaint:
         // TODO: open the Complaint screen once it is ready to link.
-        _comingSoon('Complaint');
+        _comingSoon(AppStrings.of(context).menuComplaint);
       case MenuDestination.savedDocuments:
         _openSavedDocuments();
       case MenuDestination.embassyContacts:
-        _comingSoon('Embassy & Helplines');
+        _comingSoon(AppStrings.of(context).menuEmbassy);
       case MenuDestination.helpSupport:
-        _comingSoon('Help & Support');
+        _comingSoon(AppStrings.of(context).menuHelpSupport);
       case MenuDestination.about:
-        _comingSoon('About');
+        _comingSoon(AppStrings.of(context).menuAbout);
       case MenuDestination.shareApp:
-        _comingSoon('Share App');
+        _comingSoon(AppStrings.of(context).menuShareApp);
       case MenuDestination.logout:
         // The drawer has already asked "Log out?".
         signOut(context);
@@ -290,26 +289,26 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       case ProfileAction.logout:
         // The profile screen has already asked "Log out?".
         signOut(context);
-      case ProfileAction.editProfile:
-        _comingSoon('Edit Profile');
       case ProfileAction.savedDocuments:
         _openSavedDocuments();
       case ProfileAction.passportVisa:
-        _comingSoon('Passport & Visa');
+        _comingSoon(AppStrings.of(context).featurePassportVisa);
       case ProfileAction.bmetCard:
-        _comingSoon('BMET Smart Card');
+        _comingSoon(AppStrings.of(context).featureBmetCard);
+      case ProfileAction.biometric:
+        _comingSoon(AppStrings.of(context).featureBiometric);
       case ProfileAction.changePin:
-        _comingSoon('Change PIN');
+        _comingSoon(AppStrings.of(context).featureChangePin);
       case ProfileAction.linkedDevices:
-        _comingSoon('Linked Devices');
+        _comingSoon(AppStrings.of(context).featureLinkedDevices);
       case ProfileAction.notifications:
-        _comingSoon('Notification Management');
+        _comingSoon(AppStrings.of(context).featureNotificationManagement);
       case ProfileAction.updatePhone:
         _openPhoneSetup();
       case ProfileAction.helpSupport:
-        _comingSoon('Help & Support');
+        _comingSoon(AppStrings.of(context).menuHelpSupport);
       case ProfileAction.about:
-        _comingSoon('About');
+        _comingSoon(AppStrings.of(context).menuAbout);
     }
   }
 
@@ -319,46 +318,51 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       HomeView(
         userName: _profileController.userName,
         onNavigateToNotice: () => _onTabSelected(3),
-        onNavigateToCrChecker: _openCrChecker,
         onNavigateToFraudChecker: _openFraudChecker,
         onOpenSavedDocuments: _openSavedDocuments,
         onSearchTap: _openSearch,
       ),
       PaymentView(controller: _paymentController),
-      const DocumentScanView(),
+      // Full-screen: its back arrow and Android's back gesture return Home.
+      DocumentScanView(onBack: () => _onTabSelected(0)),
       const NoticeView(),
     ];
+    // The scanner is a full-bleed camera with its own floating controls, so
+    // the shell's app bar and bottom bar step aside while it is open.
+    final scanning = _currentIndex == 2;
 
     return ListenableBuilder(
       listenable: Listenable.merge([_paymentController, _profileController]),
       builder: (context, _) {
         return Scaffold(
           key: _scaffoldKey,
-          backgroundColor: AppColors.cloudDancer,
+          backgroundColor: scanning ? AppColors.ink : AppColors.cloudDancer,
           endDrawer: AppMenuDrawer(
-            userName: _profileController.userName,
-            phoneNumber: _profileController.phoneNumber,
             appVersion: _profileController.appVersion,
             languageCode: _profileController.languageCode,
             selected: _selectedDestination,
             onLanguageChanged: _profileController.setLanguage,
             onSelected: _onMenuSelected,
           ),
-          appBar: CustomAppBar(
-            balanceAmount: _paymentController.unmaskedActiveBalance,
-            isBalanceVisible: _paymentController.isBalanceVisible,
-            // The app bar already toggles the shared balance state itself.
-            // Toggling again here flipped it back (show, then hide), which
-            // made the tap look like it did nothing.
-            onProfileTap: _openProfile,
-            onMenuTap: () => _scaffoldKey.currentState?.openEndDrawer(),
-            onSearchTap: _openSearch,
-          ),
+          appBar: scanning
+              ? null
+              : CustomAppBar(
+                  balanceAmount: _paymentController.unmaskedActiveBalance,
+                  isBalanceVisible: _paymentController.isBalanceVisible,
+                  // The app bar already toggles the shared balance state itself.
+                  // Toggling again here flipped it back (show, then hide), which
+                  // made the tap look like it did nothing.
+                  onProfileTap: _openProfile,
+                  onMenuTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+                  onSearchTap: _openSearch,
+                ),
           body: screens[_currentIndex],
-          bottomNavigationBar: CustomBottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: _onTabSelected,
-          ),
+          bottomNavigationBar: scanning
+              ? null
+              : CustomBottomNavigationBar(
+                  currentIndex: _currentIndex,
+                  onTap: _onTabSelected,
+                ),
         );
       },
     );

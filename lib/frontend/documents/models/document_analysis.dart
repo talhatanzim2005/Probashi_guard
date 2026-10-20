@@ -8,10 +8,8 @@ enum DocumentLanguage {
   final String label;
   const DocumentLanguage(this.code, this.label);
 
-  static DocumentLanguage fromCode(Object? code) => DocumentLanguage.values.firstWhere(
-        (l) => l.code == code,
-        orElse: () => DocumentLanguage.bangla,
-      );
+  static DocumentLanguage fromCode(Object? code) => DocumentLanguage.values
+      .firstWhere((l) => l.code == code, orElse: () => DocumentLanguage.bangla);
 }
 
 enum RiskLevel {
@@ -21,9 +19,9 @@ enum RiskLevel {
   unknown;
 
   static RiskLevel fromString(Object? value) => RiskLevel.values.firstWhere(
-        (r) => r.name == value,
-        orElse: () => RiskLevel.unknown,
-      );
+    (r) => r.name == value,
+    orElse: () => RiskLevel.unknown,
+  );
 }
 
 enum SigningVerdict {
@@ -35,7 +33,8 @@ enum SigningVerdict {
   const SigningVerdict(this.apiValue);
 
   /// Unknown values, including the older "SIGN_WITH_CAUTION" in saved rows, mean caution.
-  static SigningVerdict fromString(Object? value) => SigningVerdict.values.firstWhere(
+  static SigningVerdict fromString(Object? value) =>
+      SigningVerdict.values.firstWhere(
         (v) => v.apiValue == value,
         orElse: () => SigningVerdict.proceedWithCaution,
       );
@@ -61,10 +60,10 @@ enum SigningVerdict {
   String label(DocumentLanguage language) => _labels[this]![language]!;
 }
 
-/// `source_engine` of a passport read on the phone from its MRZ (otherwise "Gemini").
+/// `source_engine` of a passport read on the phone from its MRZ (otherwise "OpenRouter AI").
 const onDeviceMrzEngine = 'On-device MRZ';
 
-/// What kind of paper was scanned: passports are read on the phone, the rest by Gemini.
+/// What kind of paper was scanned: passports are read on the phone, the rest by a vision model.
 enum DocumentCategory {
   passport('PASSPORT'),
   visa('VISA'),
@@ -73,7 +72,8 @@ enum DocumentCategory {
   final String apiValue;
   const DocumentCategory(this.apiValue);
 
-  static DocumentCategory fromString(Object? value) => DocumentCategory.values.firstWhere(
+  static DocumentCategory fromString(Object? value) =>
+      DocumentCategory.values.firstWhere(
         (c) => c.apiValue == value,
         orElse: () => DocumentCategory.contract,
       );
@@ -83,7 +83,8 @@ enum DocumentCategory {
 
 double? _toDouble(Object? value) => value is num ? value.toDouble() : null;
 String _toStr(Object? value) => value is String ? value : '';
-String? _toNullableStr(Object? value) => value is String && value.trim().isNotEmpty ? value : null;
+String? _toNullableStr(Object? value) =>
+    value is String && value.trim().isNotEmpty ? value : null;
 bool? _toBool(Object? value) => value is bool ? value : null;
 Map<String, dynamic> _toMap(Object? value) =>
     value is Map ? Map<String, dynamic>.from(value) : const {};
@@ -117,32 +118,32 @@ class IdentityInfo {
   });
 
   factory IdentityInfo.fromMap(Map<String, dynamic> map) => IdentityInfo(
-        documentKind: _toStr(map['document_kind']),
-        fullName: _toNullableStr(map['full_name']),
-        documentNumber: _toNullableStr(map['document_number']),
-        nationality: _toNullableStr(map['nationality']),
-        dateOfBirth: _toNullableStr(map['date_of_birth']),
-        dateOfExpiry: _toNullableStr(map['date_of_expiry']),
-        sex: _toNullableStr(map['sex']),
-        issuingCountry: _toNullableStr(map['issuing_country']),
-        visaType: _toNullableStr(map['visa_type']),
-        sponsor: _toNullableStr(map['sponsor']),
-        occupation: _toNullableStr(map['occupation']),
-      );
+    documentKind: _toStr(map['document_kind']),
+    fullName: _toNullableStr(map['full_name']),
+    documentNumber: _toNullableStr(map['document_number']),
+    nationality: _toNullableStr(map['nationality']),
+    dateOfBirth: _toNullableStr(map['date_of_birth']),
+    dateOfExpiry: _toNullableStr(map['date_of_expiry']),
+    sex: _toNullableStr(map['sex']),
+    issuingCountry: _toNullableStr(map['issuing_country']),
+    visaType: _toNullableStr(map['visa_type']),
+    sponsor: _toNullableStr(map['sponsor']),
+    occupation: _toNullableStr(map['occupation']),
+  );
 
   /// Label/value pairs for the fields that were found, in display order.
   List<(String, String)> get presentFields => [
-        if (fullName != null) ('Name', fullName!),
-        if (documentNumber != null) ('Document no.', documentNumber!),
-        if (nationality != null) ('Nationality', nationality!),
-        if (dateOfBirth != null) ('Date of birth', dateOfBirth!),
-        if (sex != null) ('Sex', sex!),
-        if (issuingCountry != null) ('Issued by', issuingCountry!),
-        if (dateOfExpiry != null) ('Expires', dateOfExpiry!),
-        if (visaType != null) ('Visa type', visaType!),
-        if (sponsor != null) ('Sponsor / employer', sponsor!),
-        if (occupation != null) ('Occupation', occupation!),
-      ];
+    if (fullName != null) ('Name', fullName!),
+    if (documentNumber != null) ('Document no.', documentNumber!),
+    if (nationality != null) ('Nationality', nationality!),
+    if (dateOfBirth != null) ('Date of birth', dateOfBirth!),
+    if (sex != null) ('Sex', sex!),
+    if (issuingCountry != null) ('Issued by', issuingCountry!),
+    if (dateOfExpiry != null) ('Expires', dateOfExpiry!),
+    if (visaType != null) ('Visa type', visaType!),
+    if (sponsor != null) ('Sponsor / employer', sponsor!),
+    if (occupation != null) ('Occupation', occupation!),
+  ];
 }
 
 /// What is visible on the paper; the backend never claims a document is genuine.
@@ -165,7 +166,8 @@ class AuthenticityInfo {
     this.notes = '',
   });
 
-  factory AuthenticityInfo.fromMap(Map<String, dynamic> map) => AuthenticityInfo(
+  factory AuthenticityInfo.fromMap(Map<String, dynamic> map) =>
+      AuthenticityInfo(
         signaturePresent: _toBool(map['signature_present']),
         stampPresent: _toBool(map['stamp_present']),
         stampKind: _toNullableStr(map['stamp_kind']) ?? 'unclear',
@@ -210,7 +212,8 @@ class PassportMrz {
       'surnames': surnames,
       'nationality_country_code': nationalityCountryCode,
       'issuing_country_code': issuingCountryCode,
-      'expiry_date': '${expiryDate.year}-${two(expiryDate.month)}-${two(expiryDate.day)}',
+      'expiry_date':
+          '${expiryDate.year}-${two(expiryDate.month)}-${two(expiryDate.day)}',
     };
   }
 }
@@ -233,13 +236,13 @@ class SalaryInfo {
   });
 
   factory SalaryInfo.fromMap(Map<String, dynamic> map) => SalaryInfo(
-        amount: _toDouble(map['amount']),
-        currency: map['currency'] as String?,
-        period: _toStr(map['period']),
-        monthlySarEquivalent: _toDouble(map['monthly_sar_equivalent']),
-        risk: RiskLevel.fromString(map['risk']),
-        explanation: _toStr(map['explanation']),
-      );
+    amount: _toDouble(map['amount']),
+    currency: map['currency'] as String?,
+    period: _toStr(map['period']),
+    monthlySarEquivalent: _toDouble(map['monthly_sar_equivalent']),
+    risk: RiskLevel.fromString(map['risk']),
+    explanation: _toStr(map['explanation']),
+  );
 }
 
 class FeeItem {
@@ -256,11 +259,11 @@ class FeeItem {
   });
 
   factory FeeItem.fromMap(Map<String, dynamic> map) => FeeItem(
-        description: _toStr(map['description']),
-        amount: _toDouble(map['amount']),
-        currency: map['currency'] as String?,
-        paidBy: _toStr(map['paid_by']),
-      );
+    description: _toStr(map['description']),
+    amount: _toDouble(map['amount']),
+    currency: map['currency'] as String?,
+    paidBy: _toStr(map['paid_by']),
+  );
 }
 
 class TipShoiFinding {
@@ -275,10 +278,10 @@ class TipShoiFinding {
   });
 
   factory TipShoiFinding.fromMap(Map<String, dynamic> map) => TipShoiFinding(
-        type: _toStr(map['type']),
-        location: _toStr(map['location']),
-        explanation: _toStr(map['explanation']),
-      );
+    type: _toStr(map['type']),
+    location: _toStr(map['location']),
+    explanation: _toStr(map['explanation']),
+  );
 }
 
 /// One paragraph/clause of the document next to its translation.
@@ -293,7 +296,8 @@ class TranslationSegment {
 
   bool get isBlank => original.trim() == blankMarker;
 
-  factory TranslationSegment.fromMap(Map<String, dynamic> map) => TranslationSegment(
+  factory TranslationSegment.fromMap(Map<String, dynamic> map) =>
+      TranslationSegment(
         original: _toStr(map['original']),
         translated: _toStr(map['translated']),
       );
@@ -307,7 +311,7 @@ class DocumentAnalysis {
   /// Human-readable title in the chosen language, e.g. "চাকরির চুক্তিপত্র".
   final String? documentType;
 
-  /// The engine that read the document: Mindee, Base64.ai, Google Cloud Vision or Gemini.
+  /// The engine that read the document: OpenRouter AI, the phone itself ("On-device MRZ"), or "Gemini" on documents saved before the move.
   final String? sourceEngine;
   final IdentityInfo identity;
   final AuthenticityInfo authenticity;
@@ -405,6 +409,10 @@ class DocumentAnalysisResult {
   final String? imageSha256;
   final String? model;
 
+  /// Proof from the server that this result is one it produced, handed back to
+  /// `/save`. Null when the server does not sign results (development).
+  final String? analysisToken;
+
   /// How many pages the scan covered.
   final int pages;
 
@@ -415,6 +423,7 @@ class DocumentAnalysisResult {
     this.rawAnalysis = const {},
     this.imageSha256,
     this.model,
+    this.analysisToken,
     this.pages = 1,
   });
 
@@ -427,7 +436,10 @@ class DocumentAnalysisResult {
       rawAnalysis: raw,
       imageSha256: _toNullableStr(map['image_sha256']),
       model: _toNullableStr(map['model']),
-      pages: map['pages'] is int && (map['pages'] as int) > 0 ? map['pages'] as int : 1,
+      analysisToken: _toNullableStr(map['analysis_token']),
+      pages: map['pages'] is int && (map['pages'] as int) > 0
+          ? map['pages'] as int
+          : 1,
     );
   }
 }
@@ -447,9 +459,11 @@ class SavedDocument {
   });
 
   factory SavedDocument.fromRow(Map<String, dynamic> row) => SavedDocument(
-        id: _toStr(row['id']),
-        createdAt: DateTime.tryParse(_toStr(row['created_at']))?.toLocal() ?? DateTime.now(),
-        language: DocumentLanguage.fromCode(row['language']),
-        analysis: DocumentAnalysis.fromMap(row),
-      );
+    id: _toStr(row['id']),
+    createdAt:
+        DateTime.tryParse(_toStr(row['created_at']))?.toLocal() ??
+        DateTime.now(),
+    language: DocumentLanguage.fromCode(row['language']),
+    analysis: DocumentAnalysis.fromMap(row),
+  );
 }

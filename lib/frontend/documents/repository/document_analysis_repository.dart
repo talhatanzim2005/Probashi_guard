@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../config/backend_config.dart';
 import '../models/document_analysis.dart';
 
 class DocumentAnalysisException implements Exception {
@@ -19,11 +19,13 @@ class DocumentAnalysisException implements Exception {
   String toString() => message;
 }
 
-/// Sends scanned documents to backend_service (which holds the Gemini key)
-/// and reads the user's vault from Supabase. The app never calls Gemini directly.
+/// Sends scanned documents to backend_service (which holds the model key)
+/// and reads the user's vault from Supabase. The app never calls a model directly.
 class DocumentAnalysisRepository {
-  /// The backend answers within 27 s (or explains why not), so this only fires on a dead connection.
-  static const analyzeTimeout = Duration(seconds: 30);
+  /// How long the whole request may take, upload included. The backend allows
+  /// the model the same 120 s (ANALYSIS_DEADLINE_MS in routes/documents.ts); keep
+  /// the two in step.
+  static const analyzeTimeout = Duration(seconds: 120);
 
   /// Matches the backend's limit on decoded image size, per page.
   static const maxImageBytes = 8 * 1024 * 1024;
@@ -34,10 +36,6 @@ class DocumentAnalysisRepository {
   /// Matches the backend's page limit for a single scan.
   static const maxPages = 10;
 
-  /// Set when the backend isn't on this machine, e.g. a physical phone on the same Wi-Fi:
-  /// `flutter run --dart-define=BACKEND_URL=http://192.168.0.10:3000`
-  static const _configuredBaseUrl = String.fromEnvironment('BACKEND_URL');
-
   final String baseUrl;
   final http.Client _client;
   final Duration timeout;
@@ -46,24 +44,10 @@ class DocumentAnalysisRepository {
     String? baseUrl,
     http.Client? client,
     this.timeout = analyzeTimeout,
-  })  : baseUrl = baseUrl ?? _defaultBaseUrl,
-        _client = client ?? http.Client();
+  }) : baseUrl = baseUrl ?? _defaultBaseUrl,
+       _client = client ?? http.Client();
 
-  static String get _defaultBaseUrl {
-    if (_configuredBaseUrl.isNotEmpty) {
-      return _configuredBaseUrl;
-    }
-    if (kIsWeb) {
-      return 'http://localhost:3000';
-    }
-    try {
-      // 10.0.2.2 is the host PC as seen from the Android emulator only.
-      if (Platform.isAndroid) {
-        return 'http://10.0.2.2:3000';
-      }
-    } catch (_) {}
-    return 'http://localhost:3000';
-  }
+  static String get _defaultBaseUrl => BackendConfig.baseUrl;
 
   SupabaseClient? get _supabase {
     try {
@@ -79,8 +63,9 @@ class DocumentAnalysisRepository {
   /// could never see again.
   Future<Session?> _ensureSession() async => _supabase?.auth.currentSession;
 
-  /// Contracts, visas and other papers: the pages go to Gemini via the backend.
-  /// [files] is one or more page photos, or a single PDF of the whole document.
+  /// Contracts, visas and other papers: the pages go to a vision model via the backend.
+  /// [files] is the document's photo (the app sends one; the backend still
+  /// accepts several pages or a PDF).
   ///
   /// Nothing is stored unless [save] is set: the audit comes back first so the
   /// worker can read it and then choose, with [saveAnalysis], whether to keep it.
@@ -90,7 +75,9 @@ class DocumentAnalysisRepository {
     bool save = false,
   }) async {
     if (files.isEmpty || files.every((f) => f.isEmpty)) {
-      throw const DocumentAnalysisException('The photo is empty. Please take it again.');
+      throw const DocumentAnalysisException(
+        'The photo is empty. Please take it again.',
+      );
     }
     if (files.length > maxPages) {
       throw DocumentAnalysisException(
@@ -99,7 +86,7 @@ class DocumentAnalysisRepository {
     }
     if (files.any((f) => f.length > maxImageBytes)) {
       throw const DocumentAnalysisException(
-        'One of the files is too large (over 8 MB). Please choose a smaller image or PDF.',
+        'One of the files is too large (over 8 MB). Please choose a smaller image.',
       );
     }
     final totalBytes = files.fold<int>(0, (sum, f) => sum + f.length);
@@ -136,17 +123,23 @@ class DocumentAnalysisRepository {
     required DocumentLanguage language,
   }) async {
     if (result.rawAnalysis.isEmpty) {
-      throw const DocumentAnalysisException('There is nothing to save. Please scan the document again.');
+      throw const DocumentAnalysisException(
+        'There is nothing to save. Please scan the document again.',
+      );
     }
     return _post('/api/documents/save', {
       'analysis': result.rawAnalysis,
       'language': language.code,
       if (result.imageSha256 != null) 'image_sha256': result.imageSha256,
       if (result.model != null) 'model': result.model,
+      if (result.analysisToken != null) 'analysis_token': result.analysisToken,
     });
   }
 
-  Future<DocumentAnalysisResult> _post(String path, Map<String, dynamic> body) async {
+  Future<DocumentAnalysisResult> _post(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
     final token = (await _ensureSession())?.accessToken;
     http.Response response;
     try {
@@ -189,7 +182,9 @@ class DocumentAnalysisRepository {
       );
     }
     if (decoded == null) {
-      throw const DocumentAnalysisException('Document analysis returned an invalid response.');
+      throw const DocumentAnalysisException(
+        'Document analysis returned an invalid response.',
+      );
     }
     return DocumentAnalysisResult.fromMap(decoded);
   }
@@ -211,7 +206,9 @@ class DocumentAnalysisRepository {
     if (sb == null || await _ensureSession() == null) {
       final cached = await _readCachedDocuments();
       if (cached.isNotEmpty) return cached;
-      throw const DocumentAnalysisException('Unable to open your document vault. Please check your connection.');
+      throw const DocumentAnalysisException(
+        'Unable to open your document vault. Please check your connection.',
+      );
     }
     try {
       final rows = await sb
@@ -225,7 +222,9 @@ class DocumentAnalysisRepository {
       debugPrint('[DocumentAnalysisRepository] fetchSavedDocuments failed: $e');
       final cached = await _readCachedDocuments();
       if (cached.isNotEmpty) return cached;
-      throw const DocumentAnalysisException('Unable to load your saved documents.');
+      throw const DocumentAnalysisException(
+        'Unable to load your saved documents.',
+      );
     }
   }
 
@@ -236,7 +235,9 @@ class DocumentAnalysisRepository {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_vaultCacheKey);
     } catch (e) {
-      debugPrint('[DocumentAnalysisRepository] could not clear the vault cache: $e');
+      debugPrint(
+        '[DocumentAnalysisRepository] could not clear the vault cache: $e',
+      );
     }
   }
 
@@ -264,7 +265,9 @@ class DocumentAnalysisRepository {
           if (row is Map) SavedDocument.fromRow(Map<String, dynamic>.from(row)),
       ];
     } catch (e) {
-      debugPrint('[DocumentAnalysisRepository] could not read the vault cache: $e');
+      debugPrint(
+        '[DocumentAnalysisRepository] could not read the vault cache: $e',
+      );
       return const [];
     }
   }

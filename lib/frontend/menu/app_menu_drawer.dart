@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
 import '../../widget/language_toggle_switch.dart';
+import '../../widget/ink_surface.dart';
+import '../prohori/prohori_chat_view.dart' show ProhoriAvatar;
 
 /// Every place the side menu can send the user.
 /// The parent decides what each one does (Navigator, tab switch, etc.).
 enum MenuDestination {
   home,
-  profile,
+  prohori,
   payment,
   fraudChecker,
   notices,
@@ -27,6 +29,8 @@ Future<bool> confirmLogout(BuildContext context) async {
   final result = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
+      // Scrolls on a phone held sideways with large system text.
+      scrollable: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(s.logOutQuestion),
       content: Text(s.logOutBody),
@@ -55,13 +59,15 @@ class _MenuEntry {
   final String label;
   final bool isNew;
 
-  const _MenuEntry(this.destination, this.icon, this.label,
-      {this.isNew = false});
+  const _MenuEntry(
+    this.destination,
+    this.icon,
+    this.label, {
+    this.isNew = false,
+  });
 }
 
 class AppMenuDrawer extends StatelessWidget {
-  final String userName;
-  final String phoneNumber;
   final String appVersion;
 
   /// 'en' or 'bn'.
@@ -75,8 +81,6 @@ class AppMenuDrawer extends StatelessWidget {
 
   const AppMenuDrawer({
     super.key,
-    required this.userName,
-    required this.phoneNumber,
     required this.onSelected,
     this.appVersion = '1.0.0',
     this.languageCode = 'en',
@@ -85,32 +89,54 @@ class AppMenuDrawer extends StatelessWidget {
   });
 
   static List<_MenuEntry> _mainItemsFor(AppStrings s) => [
-        _MenuEntry(MenuDestination.home, Icons.home_outlined, s.menuHome),
-        _MenuEntry(MenuDestination.payment,
-            Icons.account_balance_wallet_outlined, s.menuPayments),
-        _MenuEntry(MenuDestination.fraudChecker, Icons.verified_user_outlined,
-            s.menuFraudChecker),
-        _MenuEntry(
-            MenuDestination.notices, Icons.campaign_outlined, s.menuNotices),
-        _MenuEntry(MenuDestination.complaint,
-            Icons.report_gmailerrorred_outlined, s.menuComplaint),
-        _MenuEntry(MenuDestination.ocrScanner, Icons.document_scanner_outlined,
-            s.menuDocumentScanner,
-            isNew: true),
-        _MenuEntry(MenuDestination.savedDocuments, Icons.folder_shared_outlined,
-            s.menuSavedDocuments),
-      ];
+    _MenuEntry(MenuDestination.home, Icons.home_outlined, s.menuHome),
+    _MenuEntry(
+      MenuDestination.payment,
+      Icons.account_balance_wallet_outlined,
+      s.menuPayments,
+    ),
+    _MenuEntry(
+      MenuDestination.fraudChecker,
+      Icons.verified_user_outlined,
+      s.menuFraudChecker,
+    ),
+    _MenuEntry(MenuDestination.notices, Icons.campaign_outlined, s.menuNotices),
+    _MenuEntry(
+      MenuDestination.complaint,
+      Icons.report_gmailerrorred_outlined,
+      s.menuComplaint,
+    ),
+    _MenuEntry(
+      MenuDestination.ocrScanner,
+      Icons.document_scanner_outlined,
+      s.menuDocumentScanner,
+      isNew: true,
+    ),
+    _MenuEntry(
+      MenuDestination.savedDocuments,
+      Icons.folder_shared_outlined,
+      s.menuSavedDocuments,
+    ),
+  ];
 
   static List<_MenuEntry> _supportItemsFor(AppStrings s) => [
-        _MenuEntry(MenuDestination.embassyContacts,
-            Icons.phone_in_talk_outlined, s.menuEmbassy),
-        _MenuEntry(MenuDestination.helpSupport, Icons.support_agent_outlined,
-            s.menuHelpSupport),
-        _MenuEntry(
-            MenuDestination.about, Icons.info_outline_rounded, s.menuAbout),
-        _MenuEntry(
-            MenuDestination.shareApp, Icons.ios_share_rounded, s.menuShareApp),
-      ];
+    _MenuEntry(
+      MenuDestination.embassyContacts,
+      Icons.phone_in_talk_outlined,
+      s.menuEmbassy,
+    ),
+    _MenuEntry(
+      MenuDestination.helpSupport,
+      Icons.support_agent_outlined,
+      s.menuHelpSupport,
+    ),
+    _MenuEntry(MenuDestination.about, Icons.info_outline_rounded, s.menuAbout),
+    _MenuEntry(
+      MenuDestination.shareApp,
+      Icons.ios_share_rounded,
+      s.menuShareApp,
+    ),
+  ];
 
   Future<void> _select(BuildContext context, MenuDestination d) async {
     final nav = Navigator.of(context);
@@ -148,7 +174,10 @@ class AppMenuDrawer extends StatelessWidget {
                 _buildItem(
                   context,
                   _MenuEntry(
-                      MenuDestination.logout, Icons.logout_rounded, s.logOut),
+                    MenuDestination.logout,
+                    Icons.logout_rounded,
+                    s.logOut,
+                  ),
                   danger: true,
                 ),
               ],
@@ -174,13 +203,16 @@ class AppMenuDrawer extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    final initial =
-        userName.trim().isEmpty ? '?' : userName.trim()[0].toUpperCase();
+    final s = AppStrings.of(context);
 
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
-          20, MediaQuery.of(context).padding.top + 16, 16, 20),
+        20,
+        MediaQuery.of(context).padding.top + 16,
+        16,
+        20,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.royalBlue,
         borderRadius: BorderRadius.only(topLeft: Radius.circular(24)),
@@ -205,62 +237,55 @@ class AppMenuDrawer extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
-          InkWell(
-            onTap: () => _select(context, MenuDestination.profile),
+          // Prohori, the AI assistant, sits where the profile card used to be.
+          // The profile is one tap away from the avatar in the top bar.
+          InkSurface(
+            onTap: () => _select(context, MenuDestination.prohori),
             borderRadius: BorderRadius.circular(14),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.cloudDancer.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.cloudDancer.withValues(alpha: 0.25)),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.cloudDancer.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.cloudDancer.withValues(alpha: 0.25),
               ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AppColors.cloudDancer,
-                    child: Text(
-                      initial,
-                      style: const TextStyle(
-                        color: AppColors.royalBlue,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+            ),
+            child: Row(
+              children: [
+                const ProhoriAvatar(radius: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.prohori,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.cloudDancer,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          userName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.cloudDancer,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
+                      const SizedBox(height: 2),
+                      Text(
+                        s.prohoriSubtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.cloudDancer.withValues(alpha: 0.8),
+                          fontSize: 12.5,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          phoneNumber,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.cloudDancer.withValues(alpha: 0.8),
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  Icon(Icons.chevron_right_rounded,
-                      color: AppColors.cloudDancer.withValues(alpha: 0.9)),
-                ],
-              ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.cloudDancer.withValues(alpha: 0.9),
+                ),
+              ],
             ),
           ),
         ],
@@ -268,8 +293,7 @@ class AppMenuDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildItem(BuildContext context, _MenuEntry e,
-      {bool danger = false}) {
+  Widget _buildItem(BuildContext context, _MenuEntry e, {bool danger = false}) {
     final isSelected = e.destination == selected;
     final color = danger ? AppColors.crimsonRed : AppColors.royalBlue;
 
@@ -295,14 +319,18 @@ class AppMenuDrawer extends StatelessWidget {
                     style: TextStyle(
                       color: color,
                       fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                      fontWeight: isSelected
+                          ? FontWeight.w800
+                          : FontWeight.w600,
                     ),
                   ),
                 ),
                 if (e.isNew)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.emeraldGreen.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:probashi_guard/frontend/payment/controllers/payment_controller.dart';
+import 'package:probashi_guard/frontend/payment/repository/mock_payment_repository.dart';
 
 void main() {
   group('StripePaymentRepository and PaymentController integration', () {
@@ -44,7 +45,9 @@ void main() {
           expect(res, isNotNull);
           expect(res!['checkoutUrl'], isNotNull);
           expect(
-            res['checkoutUrl'].toString().startsWith('https://checkout.stripe.com/c/pay/'),
+            res['checkoutUrl'].toString().startsWith(
+              'https://checkout.stripe.com/c/pay/',
+            ),
             true,
           );
         } catch (e) {
@@ -53,7 +56,12 @@ void main() {
       },
     );
 
-    test('Settling a card transfer updates card balances', () async {
+    test('Moving money between cards updates both balances', () async {
+      // The on-device repository: the Supabase one needs a signed-in session
+      // and is covered by the SQL checks for internal_transfer.
+      final controller = PaymentController.withRepository(
+        MockPaymentRepository(),
+      );
       await controller.init();
       if (controller.cards.length >= 2) {
         final fromCard = controller.cards[0];
@@ -61,13 +69,13 @@ void main() {
         final initialFromBalance = fromCard.balance;
         final initialToBalance = toCard.balance;
 
-        final success = await controller.settleCardTransfer(
+        final error = await controller.transferBetweenCards(
           fromCardId: fromCard.id,
           toCardId: toCard.id,
           amountInBdt: 1000.0,
         );
 
-        expect(success, true);
+        expect(error, isNull);
         expect(controller.cards[0].balance, initialFromBalance - 1000.0);
         expect(controller.cards[1].balance, initialToBalance + 1000.0);
       }

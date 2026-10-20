@@ -56,6 +56,26 @@ void main() {
           apiKey: 'test-key',
         );
 
+    test('is the default route, so no build can queue a real SMS by accident',
+        () async {
+      // No directForTestNumbers argument: this is what the app constructs. A
+      // real number must go to the test-number endpoint (which refuses it),
+      // never to the Firebase SDK, which is what sends and bills an SMS.
+      final seen = <http.Request>[];
+      final v = FirebasePhoneVerifier(
+        httpClient: firebase(seen),
+        apiKey: 'test-key',
+      );
+
+      expect(FirebasePhoneVerifier.allowRealSms, isFalse);
+      await v.sendCode('+8801911223344');
+
+      expect(seen, hasLength(1));
+      expect(seen.single.url.path, endsWith(':sendVerificationCode'));
+      final body = jsonDecode(seen.single.body) as Map<String, dynamic>;
+      expect(body['recaptchaToken'], 'probashi-guard-test-number');
+    });
+
     test('sends the number in E.164 with the API key', () async {
       final seen = <http.Request>[];
       await verifier(firebase(seen)).sendCode('+8801700000000');

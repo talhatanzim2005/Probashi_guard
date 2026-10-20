@@ -1,0 +1,146 @@
+================================================================================
+PROBASHI GUARD APP - AI ASSISTANT CONVERSATIONAL FLOW & USER MANUAL
+Language: English
+================================================================================
+
+This document outlines the conversational flow for the Probashi Guard AI Assistant, structured as a formal user manual. It is designed to assist four distinct user profiles based on their specific financial and legal needs.
+
+--------------------------------------------------------------------------------
+SECTION 1: THE CAREFUL CITIZEN ON FINANCE (DOMESTIC BANKING & LIQUIDITY)
+Target User: Individuals navigating local banking crises, liquidity shortages, and credit management.
+--------------------------------------------------------------------------------
+
+Q1: What are the risks of keeping my money in a bank that delays payments or lacks dollar availability?
+AI Assistant: Keeping funds in a bank struggling with liquidity or dollar shortages is highly risky. If a bank delays converting Taka to Dollars or fulfilling credit arrangements, it indicates a severe cash flow crisis. Your daily business transactions could be halted, import payments (LCs) may fail, and in severe cases, the bank might face mergers or strict regulatory restrictions, freezing your access to your funds.
+
+Q2: My bank has an approved credit arrangement for me, but they are failing to disburse the loan. What should I do?
+AI Assistant: This is a major red flag indicating the bank lacks the actual liquid cash to honor its commitments. You should immediately begin negotiating a new credit line or funding facility with a top-tier, financially robust private or multinational bank. Do not rely on a failing bank for urgent financial needs.
+
+Q3: Should I move my deposits out of a weak bank right now?
+AI Assistant: Yes. For working capital and emergency funds, it is wise to urgently transfer them to safer, top-tier banks. If you have large Fixed Deposits (FDs), monitor their maturity dates and systematically withdraw or transfer them to minimize your exposure to the bank's liquidity risks.
+
+Q4: Sometimes my balance drops unexpectedly. Can I use a credit card or short-term credit arrangement to manage these gaps?
+AI Assistant: Yes, using a credit card or a bank overdraft (Cash Line) is a smart strategy for short-term cash flow gaps, provided you have a guaranteed incoming source of funds. You can use the credit temporarily and pay it off once your funds arrive. 
+
+Q5: What is the danger of relying on credit cards for cash flow?
+AI Assistant: The main danger is the high interest rate. If you fail to pay the full balance within the grace period (usually 45 days), exorbitant compound interest will be applied. Only use this method if you are absolutely certain you can repay it within the interest-free window.
+
+Q6: I suddenly need a large amount of money. Will banks offer me a zero-interest loan if I have a high credit score or trustworthiness?
+AI Assistant: In standard commercial banking, purely zero-interest personal loans do not exist simply based on good credit scores. A high credit score may get you faster approval, waived processing fees, or a loan without a guarantor, but interest will still apply. 
+
+Q7: Are there any exceptions where I can actually get a zero-interest or highly flexible loan?
+AI Assistant: There are a few specialized exceptions: targeted agricultural loans (e.g., zero-coupon loans from specific state banks), microcredit/NGO loans designed for marginalized communities (e.g., Grameen Bank's flexible schemes), or digital nano-loans via bank apps, though even nano-loans usually carry a flat fee or specific interest rate.
+
+--------------------------------------------------------------------------------
+SECTION 2: THE NEWLY ARRIVED INTERNATIONAL STUDENT
+Target User: Students studying abroad facing credit history, cash flow, and visa constraints.
+--------------------------------------------------------------------------------
+
+Q1: I just arrived abroad and my budget is already failing because of unexpected setup costs. Why is this happening?
+AI Assistant: This is a common phenomenon known as the "Zero-Credit Cash Flow Trap." Because your domestic credit history from your home country does not transfer overseas, local housing markets, utility companies, and mobile networks view you as a risk. Consequently, they demand steep, multi-month security deposits upfront, which quickly overwhelms standard monthly budgeting spreadsheets.
+
+Q2: How can I secure housing or utilities if I don't have a local credit history?
+AI Assistant: You can utilize specialized international student guarantors or platforms that evaluate your financial standing based on your university acceptance or home-country bank statements. For utilities, you may have to pay the initial deposit, so it is critical to re-allocate your emergency funds specifically for these upfront security fees during your first month.
+
+Q3: My family sends me money through traditional bank wires, but the fees are eating up my funds. How can I avoid this?
+AI Assistant: Traditional bank wires can consume up to 5% of your total transfer value through hidden exchange rate margins and administrative fees. To optimize your remittances, switch to digital cross-border platforms like Wise or Remitly. These platforms bypass traditional banking rails, offering mid-market exchange rates and significantly lower, transparent fees.
+
+Q4: I find myself constantly converting local prices back to my home currency in my head. Is this a bad habit?
+AI Assistant: Yes, this causes "Mental Accounting" distortion. Constantly converting prices creates a skewed perception of spending, making small local expenses feel either deceptively cheap or overwhelmingly expensive. This leads to minor daily expenses accumulating into a massive deficit. You must train yourself to budget entirely in the local currency.
+
+Q5: I need to work more hours to cover high seasonal utility bills, but my student visa has work limits. What should I do?
+AI Assistant: You must ensure absolute compliance with your visa labor restrictions. Violating your part-time work hour cap (often 20 hours/week) can lead to deportation. Instead of working illegal extra hours, you must adjust your budget, apply for campus hardship grants, or seek alternative financing.
+
+Q6: What alternative financing options exist for international students without local co-signers?
+AI Assistant: If you face a severe cash flow crisis, look into specialized alternative financing such as MPOWER Financing or Prodigy Finance. These providers offer no-cosigner student loans tailored specifically for international scholars, basing approval on your future earning potential rather than your current local credit score.
+
+Q7: How should I structure my budget to survive as an international student?
+AI Assistant: Adopt the 50/30/20 budgeting rule, calculated strictly in your host country's currency. Allocate 50% to essential needs (rent, groceries, utilities), 30% to wants, and 20% to savings or debt repayment. 
+
+Q8: I am struggling to afford daily living costs. What resources can I use to lower expenses?
+AI Assistant: Leverage your student status aggressively. Map out local student discounts for transport, software, and groceries. Additionally, consult your campus financial advisor to locate food pantries, textbook lending libraries, and subsidized transit passes provided by the university.
+
+Q9: Is it common for the cost of living to be higher than what I researched online?
+AI Assistant: Yes. Cost comparison databases like Numbeo often rely on historical averages and may not reflect recent inflation or the specific premium costs associated with student neighborhoods. Always add a 15-20% buffer to any online cost-of-living estimates before you arrive.
+
+--------------------------------------------------------------------------------
+SECTION 3: THE REMITTANCE WORKER (MIGRANT PROTECTIONS & FRAUD PREVENTION)
+Target User: Expatriate workers (specifically in regions like Saudi Arabia/Aseer) facing labor rights violations and legal fraud.
+--------------------------------------------------------------------------------
+
+Q1: What is the legal minimum monthly wage I should be receiving?
+AI Assistant: Diplomatic missions have requested that the minimum monthly wage for Bangladeshi workers be fixed at no less than SAR 1,000. If your establishment is paying you only SAR 500-600, they are violating fair labor expectations and leaving you with an inadequate living wage.
+
+Q2: My employer asked me to place my fingerprint on a blank Arabic document as a "routine formality." Should I do it?
+AI Assistant: No, absolutely never place your signature or fingerprint on any blank document or document you cannot read. This is a widespread fraudulent practice. Employers use these blank pages to falsely claim in Execution (Tanfeez) Courts that you owe them massive sums of money (often SAR 6,000 to SAR 25,000).
+
+Q3: I work for a delivery platform (like Hunger Station) and my employer filed a massive financial claim against me using my fingerprint. What can I do?
+AI Assistant: This is a known pattern of fraud. You must immediately report this to the labor court and the Bangladesh Consulate. Challenge the claim by demanding the employer provide independent, verifiable evidence of the financial transaction, such as a bank transfer or cheque, rather than just a fingerprint on a blank page.
+
+Q4: What happens if my employer falsely reports me as "Huroob" (absconding)?
+AI Assistant: A false Huroob status criminalizes you and strips you of your legal documentation. Do not panic and do not go directly to a police station. Instead, utilize official digital labor dispute portals (like MHRSD/Qiwa in Saudi Arabia) to electronically contest the Huroob status and log evidence of your employment to suspend deportation procedures.
+
+Q5: I arrived three months ago, but my recruiting company hasn't given me a job or a valid Iqama. What is happening?
+AI Assistant: You are likely a victim of "visa trading" by a shell company. Some small establishments are approved for only a few visas but recruit thousands illegally, leaving workers stranded without legal status. You must report the agency to your embassy and local labor authorities for operating a non-functional recruiting establishment.
+
+Q6: How can I verify a recruiting company before I leave my home country?
+AI Assistant: Use the Probashi Guard app to check the employer's Commercial Registration and pre-departure contract risk analysis. The app can cross-reference the company to see if they are on a red list for failing to provide sustained employment or ensure worker welfare.
+
+Q7: My employment offer stated a high salary, but my actual pay is much lower. Is this legal?
+AI Assistant: No, this is a breach of contract. Discrepancies between the employment offer and actual paid wages are illegal. You have the right to demand the implementation of your original contract and should seek mediation through local labor offices or the consulate.
+
+Q8: I am a female domestic worker facing physical abuse and confinement. How can I get help?
+AI Assistant: Your safety is the highest priority. Use the Probashi Guard app's anonymous complaint pipeline or emergency SOS feature to contact the consulate or local authorities. Do not wait. The authorities are urged to provide protection to victims and hold offenders accountable.
+
+Q9: If I escape an abusive employer, can they file theft charges against me?
+AI Assistant: Yes, abusive employers often retaliate by filing false theft accusations and imposing travel bans when a domestic worker flees. This is why you must notify the authorities or your embassy immediately upon escaping, so it is on record that you fled due to abuse, not to commit a crime.
+
+Q10: I paid the Tarhil (deportation) center to process my exit in one day, but my friend has been waiting for months. Is this normal?
+AI Assistant: While it happens, demanding unofficial payments (like SAR 1,000) to expedite Tarhil exits out of turn is an irregular and illegal practice. Exits and Service Exit Permits (SEP) must legally be processed sequentially. You should report bribery or extortion to the oversight authorities.
+
+Q11: I received my final exit confirmation from Tarhil, but my sponsor just filed a new police complaint to stop me at the airport. What are my rights?
+AI Assistant: This is a retaliatory tactic used by malicious sponsors to leave workers stranded. Diplomatic efforts are actively pushing for a system where, once Tarhil confirms an exit clearance, no subsequent complaint by a sponsor can block your departure. Contact your consulate immediately from the airport if this occurs.
+
+Q12: The police checked my Iqama at the supermarket. Will this cause problems when I try to leave the country?
+AI   Assistant: It shouldn't, but unfortunately, routine police checks are sometimes erroneously recorded as "police cases" in the system, which can delay your final exit process even if Tarhil cleared your fingerprints. Keep records of all your documents and verify your status digitally before heading to the airport.
+
+Q13: During a routine police body search, the officer confiscated the cash in my pocket. Is this legal?
+AI Assistant: No, confiscating personal money during a routine identity check is illegal and constitutes harassment. You should report this incident to your consulate so they can raise the issue with the relevant regional authorities for an accountable remedy.
+
+Q14: I am trapped in a "gharamah" (imposed debt) due to a false court ruling. I don't know how to pay it. Will I be forced into bonded labor?
+AI Assistant: You are not alone; this is a systemic abuse of the legal system. Do not agree to bonded servitude to pay off a fraudulent debt. Seek immediate legal assistance from the consulate to petition the Execution Court for a review, highlighting the lack of an interpreter and lack of verifiable banking evidence during the original ruling.
+
+Q15: How can the Probashi Guard App help me if I have a grievance?
+AI Assistant: The app provides a direct, simple grievance redress mechanism that coordinates with relevant labor offices and the Bangladesh Consulate. You can submit your complaints digitally, track their resolution status, and access legal guidelines in Bangla.
+
+--------------------------------------------------------------------------------
+SECTION 4: PROBASHI GUARD APP - INSTRUCTION & NAVIGATION GUIDE
+Target User: All app users needing help navigating features.
+--------------------------------------------------------------------------------
+
+Q1: Where can I check my account balance in the app?
+AI Assistant: Your balance is visible at the top of your screen on most pages. For a detailed view, tap the "Payment" tab at the bottom of the screen, and tap the "eye" icon on your card to show or hide your balance securely.
+
+Q2: How do I send money or remittance to someone?
+AI Assistant: Tap the "Payment" tab (the second icon at the bottom). From there, tap "Send" to enter a new number, tap "+ Add recipient," or simply tap one of your saved "Quick-send" contacts to initiate an immediate transfer.
+
+Q3: How do I receive money or share my account details with my family or employer?
+AI Assistant: Tap the "Payment" tab, then select "Receive." A sheet will open displaying your account number and IBAN. You can easily copy this information or share it directly with others from that screen.
+
+Q4: An employer gave me a document. Where do I go to scan it and check for fraud?
+AI Assistant: Tap the "Scan" icon located in the very middle of the bottom menu. You can also access the "Fraud Checker" tool from the side menu or under the "Quick Features" section on your Home screen.
+
+Q5: I saved a contract earlier. How do I find my Saved Documents?
+AI Assistant: You can find your Saved Documents in three ways:
+1. Tap the menu icon at the top corner and select "Saved Documents."
+2. Tap your profile icon at the top, then tap "Saved Documents."
+3. Use the "Quick Features" shortcut on the Home screen.
+
+Q6: Where can I read official government notices, warnings, and system alerts?
+AI Assistant: Tap the "Notice" tab on the far right of the bottom menu. Additionally, if you see a notice sliding across your Home screen, you can tap it directly to jump straight to the full news article.
+
+Q7: I am more comfortable reading in Bangla. How do I change the app language?
+AI Assistant: Tap the menu icon at the top corner to open the side drawer, then tap the "EN / BN" switch. Alternatively, you can change your language preferences by going to your Profile.
+
+Q8: I changed my phone number. How do I update it in the system?
+AI Assistant: Tap your Profile icon at the top of the screen. From there, you can either tap your current name/phone number at the very top or scroll down and select "Update Phone Number."

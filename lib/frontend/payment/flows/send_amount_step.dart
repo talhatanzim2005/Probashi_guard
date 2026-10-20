@@ -57,7 +57,7 @@ class _SendAmountStepState extends State<SendAmountStep> {
                 title: 'WPS Payroll Card',
                 providerName: 'Al Rajhi',
                 cardNumberMasked: '•••• 8420',
-                balance: 98420.12,
+                balance: 50000.00,
                 currency: 'BDT',
                 expiryDate: '12/28',
                 cardType: CardType.wpsPayroll,
@@ -131,14 +131,18 @@ class _SendAmountStepState extends State<SendAmountStep> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.inkMuted,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+        // A long label wraps instead of pushing the figure off the card.
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.inkMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
+        const SizedBox(width: 8),
         Text(
           value,
           style: TextStyle(
@@ -250,27 +254,37 @@ class _SendAmountStepState extends State<SendAmountStep> {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            widget.recipient.name,
-                            style: const TextStyle(
-                              color: AppColors.ink,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
+                          Flexible(
+                            child: Text(
+                              widget.recipient.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.ink,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Text(
-                            '(${widget.recipient.countryName})',
-                            style: const TextStyle(
-                              color: AppColors.inkMuted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
+                          Flexible(
+                            child: Text(
+                              '(${widget.recipient.countryName})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.inkMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ],
                       ),
                       Text(
                         '${widget.recipient.providerType} • ${widget.recipient.phoneOrAccount}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.inkMuted,
                           fontSize: 11.5,
@@ -339,21 +353,30 @@ class _SendAmountStepState extends State<SendAmountStep> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              c.title,
-                              style: const TextStyle(
-                                color: AppColors.ink,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13.5,
+                            Expanded(
+                              child: Text(
+                                c.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.ink,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
+                                ),
                               ),
                             ),
-                            Text(
-                              s.availableShort(
-                                '৳${c.balance.toStringAsFixed(0)}',
-                              ),
-                              style: const TextStyle(
-                                color: AppColors.inkMuted,
-                                fontSize: 12,
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                s.availableShort(
+                                  '৳${c.balance.toStringAsFixed(0)}',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.inkMuted,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],
@@ -476,23 +499,28 @@ class _SendAmountStepState extends State<SendAmountStep> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          widget.recipient.countryFlag,
-                          style: const TextStyle(fontSize: 15),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          s.recipientGetsIn(widget.recipient.countryName),
-                          style: const TextStyle(
-                            color: AppColors.ink,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Text(
+                            widget.recipient.countryFlag,
+                            style: const TextStyle(fontSize: 15),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              s.recipientGetsIn(widget.recipient.countryName),
+                              style: const TextStyle(
+                                color: AppColors.ink,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       '${widget.recipient.currencySymbol}${_destinationAmount.toStringAsFixed(2)}',
                       style: const TextStyle(

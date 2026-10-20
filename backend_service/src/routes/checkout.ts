@@ -2,19 +2,25 @@ import { Router, Request, Response } from 'express';
 import stripeClient from '../stripeClient.js';
 import { triggerPaymentTasksSafely } from '../trigger/paymentTasks.js';
 import { buildDestinationChargeData } from '../stripeConnect.js';
-import { resolveUserId, hasVerifiedPhone } from '../supabaseUser.js';
+import { resolveUserId, hasVerifiedPhone, requireAuth } from '../supabaseUser.js';
+import { rateLimit } from '../rateLimit.js';
+import {
+  SETTLEMENT_CURRENCY,
+  USD_TO_BDT,
+  VAT_ON_COMMISSION_RATE,
+  toUsdCents,
+  isCardId,
+} from '../pricing.js';
 
 const router = Router();
 
-/// Every transfer settles in USD; these convert the sender's figures into it.
-const SETTLEMENT_CURRENCY = 'usd';
-const USD_TO_BDT = 119.5;
-const VAT_ON_COMMISSION_RATE = 0.0001; // 0.01%
+/// Routes that create things on Stripe cost API quota, so they need a signed-in
+/// account and a modest per-account ceiling.
+const stripeGuard = [requireAuth, rateLimit({ name: 'stripe', max: 30, windowMs: 60_000 })];
 
-/// Stripe rejects a USD charge under 50 cents, so that is the floor.
-function toUsdCents(amountUsd: number): number {
-  return Math.max(50, Math.round(amountUsd * 100));
-}
+const ALLOWED_PRODUCT_CURRENCIES = ['usd', 'bdt'];
+const MAX_PRODUCT_AMOUNT = 100_000;
+const MAX_APPLICATION_FEE = 10_000;
 
 /**
  * GET /api/rates
@@ -70,25 +76,33 @@ router.get('/rates', async (_req: Request, res: Response) => {
 /**
  * POST /api/products/create
  */
-router.post('/products/create', async (req: Request, res: Response) => {
+router.post('/products/create', ...stripeGuard, async (req: Request, res: Response) => {
   try {
     const { name, description, amount, currency } = req.body;
+    const price = Number(amount ?? 10);
+    const cur = String(currency || 'bdt').toLowerCase();
+    if (!Number.isFinite(price) || price <= 0 || price > MAX_PRODUCT_AMOUNT) {
+      return res.status(400).json({ error: 'amount must be between 0 and ' + MAX_PRODUCT_AMOUNT });
+    }
+    if (!ALLOWED_PRODUCT_CURRENCIES.includes(cur)) {
+      return res.status(400).json({ error: 'currency must be one of: ' + ALLOWED_PRODUCT_CURRENCIES.join(', ') });
+    }
     const product = await stripeClient.products.create({
-      name: name || 'Probashi Service Item',
-      description: description || 'Digital remittance protection guarantee',
+      name: String(name || 'Probashi Service Item').slice(0, 120),
+      description: String(description || 'Digital remittance protection guarantee').slice(0, 500),
     });
 
-    const price = await stripeClient.prices.create({
+    const stripePrice = await stripeClient.prices.create({
       product: product.id,
-      unit_amount: Math.round((amount || 10) * 100),
-      currency: (currency || 'bdt').toLowerCase(),
+      unit_amount: Math.round(price * 100),
+      currency: cur,
     });
 
     res.status(201).json({
       productId: product.id,
-      priceId: price.id,
+      priceId: stripePrice.id,
       product,
-      price,
+      price: stripePrice,
     });
   } catch (error: any) {
     console.error('Error creating product:', error);
@@ -99,10 +113,20 @@ router.post('/products/create', async (req: Request, res: Response) => {
 /**
  * POST /api/checkout/destination-charge
  */
-router.post('/destination-charge', async (req: Request, res: Response) => {
+router.post('/destination-charge', ...stripeGuard, async (req: Request, res: Response) => {
   try {
     const { priceId, quantity, applicationFeeAmount, connectedAccountId, customerEmail } = req.body;
     const feeAmount = applicationFeeAmount !== undefined ? Number(applicationFeeAmount) : 150;
+    if (typeof priceId !== 'string' || !/^price_[A-Za-z0-9]+$/.test(priceId)) {
+      return res.status(400).json({ error: 'priceId is required' });
+    }
+    if (!Number.isFinite(feeAmount) || feeAmount < 0 || feeAmount > MAX_APPLICATION_FEE) {
+      return res.status(400).json({ error: 'applicationFeeAmount is out of range' });
+    }
+    const qty = Number(quantity ?? 1);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 10) {
+      return res.status(400).json({ error: 'quantity must be a whole number from 1 to 10' });
+    }
 
     // Only route funds through Connect when the destination is a real connected
     // account that can receive a transfer; otherwise charge the platform directly.
@@ -126,7 +150,7 @@ router.post('/destination-charge', async (req: Request, res: Response) => {
       line_items: [
         {
           price: priceId,
-          quantity: quantity || 1,
+          quantity: qty,
         },
       ],
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -152,13 +176,18 @@ router.post('/destination-charge', async (req: Request, res: Response) => {
 /**
  * GET /api/checkout/session-status/:sessionId
  */
-router.get('/session-status/:sessionId', async (req: Request, res: Response) => {
+router.get('/session-status/:sessionId', requireAuth, async (req: Request, res: Response) => {
   try {
     const sessionId = String(req.params.sessionId || '');
-    if (!sessionId) {
-      return res.status(400).json({ error: 'Missing sessionId parameter' });
+    if (!/^cs_[A-Za-z0-9_]{8,200}$/.test(sessionId)) {
+      return res.status(400).json({ error: 'Missing or malformed sessionId' });
     }
     const session = await stripeClient.checkout.sessions.retrieve(sessionId);
+    // Only the account that opened the session may ask about it. 404 rather
+    // than 403, so a stranger learns nothing about whether it exists.
+    if (session.metadata?.payerUserId !== res.locals.userId) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
     res.json({
       success: true,
       status: session.status,
@@ -176,7 +205,7 @@ router.get('/session-status/:sessionId', async (req: Request, res: Response) => 
  * POST /api/checkout/send-money
  * Map the remittance flow directly to Stripe Checkout Session with integer unit_amount (poisha).
  */
-router.post('/send-money', async (req: Request, res: Response) => {
+router.post('/send-money', rateLimit({ name: 'send-money', max: 20, windowMs: 60_000 }), async (req: Request, res: Response) => {
   try {
     // Who is paying. The webhook credits THIS account's wallet once Stripe
     // reports the session paid, so the id has to come from a verified token
@@ -245,7 +274,11 @@ router.post('/send-money', async (req: Request, res: Response) => {
       '+8801700000000';
 
     const resolvedSourceCurrency = String(sourceCurrency || 'SAR').toUpperCase();
-    const resolvedCardId = String(cardId || sourceCardId || 'card_wps');
+    const requestedCardId = cardId || sourceCardId || 'card_wps';
+    if (!isCardId(requestedCardId)) {
+      return res.status(400).json({ error: 'Unknown source card' });
+    }
+    const resolvedCardId = requestedCardId;
     const resolvedIncentiveBdt = Number(incentiveBdt || 0);
 
     const sessionParams: any = {
@@ -272,6 +305,7 @@ router.post('/send-money', async (req: Request, res: Response) => {
       },
       submit_type: 'auto',
       metadata: {
+        kind: 'remittance',
         cardId: resolvedCardId,
         sourceAmount: String(rawSourceAmount || bdtValue),
         sourceCurrency: resolvedSourceCurrency,
@@ -341,85 +375,6 @@ router.post('/send-money', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error creating Stripe Checkout Session:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
-  }
-});
-
-/**
- * POST /api/checkout/card-transfer
- * Moves funds between two of the holder's own cards. Stripe has no card-to-card
- * primitive, so the move is charged as a USD Checkout session; the balances are
- * only moved once that session reports paid.
- */
-router.post('/card-transfer', async (req: Request, res: Response) => {
-  try {
-    const { fromCardId, toCardId, amountBdt, customerEmail } = req.body;
-
-    const from = String(fromCardId || '');
-    const to = String(toCardId || '');
-    if (!from || !to) {
-      return res.status(400).json({ error: 'fromCardId and toCardId are required' });
-    }
-    if (from === to) {
-      return res.status(400).json({ error: 'Source and destination card must be different' });
-    }
-
-    const bdtValue = Number(amountBdt);
-    if (!Number.isFinite(bdtValue) || bdtValue <= 0) {
-      return res.status(400).json({ error: 'amountBdt must be greater than 0' });
-    }
-
-    // Derived server-side for the same reason as /send-money: the client says
-    // how much to move, not what it costs.
-    const resolvedVat = bdtValue * VAT_ON_COMMISSION_RATE;
-    const usdValue = (bdtValue + resolvedVat) / USD_TO_BDT;
-
-    const domain = process.env.DOMAIN || 'http://localhost:3000';
-    const session = await stripeClient.checkout.sessions.create({
-      mode: 'payment',
-      customer_email: customerEmail || undefined,
-      success_url: `${domain}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${domain}/cancel`,
-      billing_address_collection: 'auto',
-      line_items: [
-        {
-          price_data: {
-            currency: SETTLEMENT_CURRENCY,
-            unit_amount: toUsdCents(usdValue),
-            product_data: {
-              name: 'Card to card transfer',
-              description: `Probashi Guard transfer ${from} to ${to} • incl. VAT on commission`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        kind: 'card_transfer',
-        fromCardId: from,
-        toCardId: to,
-        amountBdt: String(bdtValue),
-        vatOnCommission: String(resolvedVat),
-        usdToBdt: String(USD_TO_BDT),
-      },
-    });
-
-    if (!session || !session.url) {
-      return res.status(500).json({ error: 'Stripe failed to return a checkout session URL' });
-    }
-
-    return res.status(201).json({
-      success: true,
-      checkoutUrl: session.url,
-      sessionId: session.id,
-      fromCardId: from,
-      toCardId: to,
-      amountBdt: bdtValue,
-      vatOnCommission: resolvedVat,
-      usdAmount: usdValue,
-    });
-  } catch (error: any) {
-    console.error('[Checkout] Error creating card transfer session:', error);
     return res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
 });

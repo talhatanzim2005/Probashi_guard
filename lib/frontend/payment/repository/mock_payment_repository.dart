@@ -18,7 +18,7 @@ class MockPaymentRepository implements PaymentRepository {
       title: 'WPS Payroll Card',
       providerName: 'Wage Protection System (Al Rajhi)',
       cardNumberMasked: '•••• 8420',
-      balance: 98420.12, // in base BDT representation
+      balance: 50000.00, // in base BDT representation
       currency: 'BDT',
       expiryDate: '08/29',
       cardType: CardType.wpsPayroll,
@@ -30,7 +30,7 @@ class MockPaymentRepository implements PaymentRepository {
       title: 'Probashi Expatriate Account',
       providerName: 'Probashi Kallyan Bank',
       cardNumberMasked: '•••• 1947',
-      balance: 145000.00,
+      balance: 25000.00,
       currency: 'BDT',
       expiryDate: '12/28',
       cardType: CardType.probashiMultiCurrency,
@@ -42,7 +42,7 @@ class MockPaymentRepository implements PaymentRepository {
       title: 'Probashi Global Visa',
       providerName: 'Visa • International',
       cardNumberMasked: '•••• 4242',
-      balance: 24850.50,
+      balance: 10000.00,
       currency: 'BDT',
       expiryDate: '03/30',
       cardType: CardType.internationalVisa,
@@ -285,21 +285,6 @@ class MockPaymentRepository implements PaymentRepository {
     required double vatOnCommission,
     required double usdAmount,
     String? connectedAccountId,
-  }) async {
-    await Future.delayed(const Duration(milliseconds: 150));
-    throw Exception(
-      'Payment Gateway Error: No payment gateway is configured. '
-      'Start the backend service (cd backend_service && npm run dev) to open Stripe Checkout.',
-    );
-  }
-
-  @override
-  Future<Map<String, dynamic>> executeCardTransfer({
-    required String fromCardId,
-    required String toCardId,
-    required double amountBdt,
-    required double vatOnCommission,
-    required double usdAmount,
   }) async {
     await Future.delayed(const Duration(milliseconds: 150));
     throw Exception(

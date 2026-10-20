@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../../config/backend_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/beneficiary_model.dart';
 import '../models/transaction_model.dart';
@@ -37,23 +37,13 @@ class StripePaymentRepository implements PaymentRepository {
     return headers;
   }
 
-  static String get _defaultBaseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:3000';
-    }
-    try {
-      if (Platform.isAndroid) {
-        return 'http://10.0.2.2:3000';
-      }
-    } catch (_) {}
-    return 'http://localhost:3000';
-  }
+  static String get _defaultBaseUrl => BackendConfig.baseUrl;
 
   @override
   Future<List<WalletCardModel>> getCards() async {
     try {
       final response = await _client
-          .get(Uri.parse('$baseUrl/api/payment/cards'))
+          .get(Uri.parse('$baseUrl/api/payment/cards'), headers: _authHeaders)
           .timeout(const Duration(seconds: 4));
 
       if (response.statusCode == 200) {
@@ -73,7 +63,10 @@ class StripePaymentRepository implements PaymentRepository {
   Future<List<BeneficiaryModel>> getBeneficiaries() async {
     try {
       final response = await _client
-          .get(Uri.parse('$baseUrl/api/payment/beneficiaries'))
+          .get(
+            Uri.parse('$baseUrl/api/payment/beneficiaries'),
+            headers: _authHeaders,
+          )
           .timeout(const Duration(seconds: 4));
 
       if (response.statusCode == 200) {
@@ -98,7 +91,7 @@ class StripePaymentRepository implements PaymentRepository {
         '$baseUrl/api/payment/transactions',
       ).replace(queryParameters: cardId != null ? {'cardId': cardId} : null);
       final response = await _client
-          .get(uri)
+          .get(uri, headers: _authHeaders)
           .timeout(const Duration(seconds: 4));
 
       if (response.statusCode == 200) {
@@ -223,7 +216,10 @@ class StripePaymentRepository implements PaymentRepository {
   Future<bool> verifyCheckoutSession(String sessionId) async {
     try {
       final response = await _client
-          .get(Uri.parse('$baseUrl/api/checkout/session-status/$sessionId'))
+          .get(
+            Uri.parse('$baseUrl/api/checkout/session-status/$sessionId'),
+            headers: _authHeaders,
+          )
           .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -253,89 +249,11 @@ class StripePaymentRepository implements PaymentRepository {
   }
 
   @override
-  Future<Map<String, dynamic>> executeCardTransfer({
-    required String fromCardId,
-    required String toCardId,
-    required double amountBdt,
-    required double vatOnCommission,
-    required double usdAmount,
-  }) async {
-    http.Response response;
-    try {
-      response = await _client
-          .post(
-            Uri.parse('$baseUrl/api/checkout/card-transfer'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'fromCardId': fromCardId,
-              'toCardId': toCardId,
-              'amountBdt': amountBdt,
-              'vatOnCommission': vatOnCommission,
-              'usdAmount': usdAmount,
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
-    } catch (netErr) {
-      debugPrint(
-        '[StripePaymentRepository] card transfer network error: $netErr',
-      );
-      throw Exception(
-        'Payment Gateway Error: Unable to connect to payment server. Please ensure backend service is running.',
-      );
-    }
-
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      String errorMessage = 'Payment Gateway Error (${response.statusCode})';
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map && decoded['error'] != null) {
-          errorMessage = 'Payment Gateway Error: ${decoded['error']}';
-        }
-      } catch (_) {}
-      throw Exception(errorMessage);
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final checkoutUrl = data['checkoutUrl']?.toString() ?? '';
-    if (checkoutUrl.isEmpty ||
-        (!checkoutUrl.startsWith('http://') &&
-            !checkoutUrl.startsWith('https://'))) {
-      throw Exception(
-        'Payment Gateway Error: Malformed or missing Checkout URL returned by gateway.',
-      );
-    }
-    return data;
-  }
-
-  @override
   Future<bool> executeInterCardTransfer({
     required String fromCardId,
     required String toCardId,
     required double amount,
   }) async {
-    try {
-      final response = await _client
-          .post(
-            Uri.parse('$baseUrl/api/payment/transfer-cards'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'fromCardId': fromCardId,
-              'toCardId': toCardId,
-              'amount': amount,
-            }),
-          )
-          .timeout(const Duration(seconds: 5));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        return data['success'] == true;
-      }
-    } catch (e) {
-      debugPrint(
-        '[StripePaymentRepository] executeInterCardTransfer fallback: $e',
-      );
-    }
-
     return _fallbackRepository.executeInterCardTransfer(
       fromCardId: fromCardId,
       toCardId: toCardId,

@@ -3,6 +3,7 @@ import '../../../l10n/app_strings.dart';
 import '../../../theme/app_colors.dart';
 import '../controllers/payment_controller.dart';
 import '../models/currency_model.dart';
+import '../../../widget/ink_surface.dart';
 
 /// Compact currency switcher.
 ///
@@ -12,10 +13,7 @@ import '../models/currency_model.dart';
 class CurrencySelectorPill extends StatelessWidget {
   final PaymentController controller;
 
-  const CurrencySelectorPill({
-    super.key,
-    required this.controller,
-  });
+  const CurrencySelectorPill({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -78,35 +76,33 @@ class _CurrencyChip extends StatelessWidget {
       selected: isSelected,
       label: '${AppStrings.of(context).currency} $code',
       excludeSemantics: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      child: InkSurface(
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.royalBlue : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(flag, style: const TextStyle(fontSize: 13)),
-              const SizedBox(width: 5),
-              Text(
-                code,
-                style: TextStyle(
-                  color: isSelected
-                      ? AppColors.cloudDancer
-                      : AppColors.royalBlueMuted,
-                  fontSize: 12.5,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                ),
+        borderRadius: BorderRadius.circular(16),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.royalBlue : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(flag, style: const TextStyle(fontSize: 13)),
+            const SizedBox(width: 5),
+            Text(
+              code,
+              style: TextStyle(
+                color: isSelected
+                    ? AppColors.cloudDancer
+                    : AppColors.royalBlueMuted,
+                fontSize: 12.5,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

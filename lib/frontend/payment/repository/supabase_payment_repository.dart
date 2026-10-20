@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../config/backend_config.dart';
 import '../models/beneficiary_model.dart';
 import '../models/transaction_model.dart';
 import '../models/wallet_card_model.dart';
@@ -55,39 +56,38 @@ class SupabasePaymentRepository implements PaymentRepository {
     return headers;
   }
 
-  static String get _defaultBaseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:3000';
-    }
-    try {
-      if (Platform.isAndroid) {
-        return 'http://10.0.2.2:3000';
-      }
-    } catch (_) {}
-    return 'http://localhost:3000';
-  }
+  static String get _defaultBaseUrl => BackendConfig.baseUrl;
 
+  /// One ledger wallet per card. The server owns the balances; this only reads
+  /// them (RLS lets a signed-in person select their own rows), and lays them over
+  /// the card artwork and titles, which are display metadata.
   @override
   Future<List<WalletCardModel>> getCards() async {
     final sb = _supabase;
-    if (sb != null) {
+    if (sb != null && sb.auth.currentUser != null) {
       try {
-        final records = await sb
+        var records = await sb
             .from('wallets')
-            .select()
+            .select('card_id, balance')
             .timeout(const Duration(seconds: 4));
 
+        // An account from before the card wallets existed: open them, once.
+        if (records.length < 3) {
+          await sb.rpc('ensure_my_wallet').timeout(const Duration(seconds: 4));
+          records = await sb
+              .from('wallets')
+              .select('card_id, balance')
+              .timeout(const Duration(seconds: 4));
+        }
+
         if (records.isNotEmpty) {
-          // One wallet row per card. Older databases hold a single row with no
-          // card_id; that one still stands for the WPS card.
           final balances = <String, double>{};
           for (final row in records) {
-            final cardId = row['card_id']?.toString() ?? 'card_wps';
-            final raw = row['balance_bdt'];
+            final raw = row['balance'];
             final balance = raw is num
                 ? raw.toDouble()
                 : double.tryParse(raw?.toString() ?? '');
-            if (balance != null) balances[cardId] = balance;
+            if (balance != null) balances[row['card_id'].toString()] = balance;
           }
 
           final baseCards = await _fallbackRepository.getCards();
@@ -163,114 +163,24 @@ class SupabasePaymentRepository implements PaymentRepository {
     return _fallbackRepository.getBeneficiaries();
   }
 
+  /// The person's own ledger legs, newest first. RLS limits the select to
+  /// their rows, so no user filter is needed (or trusted) here.
   @override
   Future<List<TransactionModel>> getTransactions({String? cardId}) async {
     final sb = _supabase;
-    if (sb != null) {
+    if (sb != null && sb.auth.currentUser != null) {
       try {
         var query = sb.from('transactions').select();
-        // This device's transactions, plus records with no sender (made before
-        // anonymous sign-in, or written by the backend webhook).
-        final userId = sb.auth.currentUser?.id;
-        if (userId != null) {
-          query = query.or('sender_id.eq.$userId,sender_id.is.null');
-        }
         if (cardId != null) {
           query = query.eq('card_id', cardId);
         }
         final records = await query
             .order('created_at', ascending: false)
+            .limit(100)
             .timeout(const Duration(seconds: 4));
 
         if (records.isNotEmpty) {
-          return records.map((record) {
-            final rawType = record['type']?.toString().toLowerCase();
-            TransactionType type;
-            switch (rawType) {
-              case 'receive':
-                type = TransactionType.receive;
-                break;
-              case 'subscription':
-                type = TransactionType.subscription;
-                break;
-              case 'transfer':
-                type = TransactionType.transfer;
-                break;
-              default:
-                type = TransactionType.send;
-            }
-
-            final rawAmountBdt = record['amount_bdt'];
-            final double? amountBdt = rawAmountBdt is num
-                ? rawAmountBdt.toDouble()
-                : double.tryParse(rawAmountBdt?.toString() ?? '');
-
-            final rawConverted = record['converted_amount'];
-            final double? convertedAmount = rawConverted is num
-                ? rawConverted.toDouble()
-                : double.tryParse(rawConverted?.toString() ?? '');
-
-            final rawAmount =
-                record['amount'] ??
-                record['amount_bdt'] ??
-                record['converted_amount'];
-            final double amount = rawAmount is num
-                ? rawAmount.toDouble()
-                : (double.tryParse(rawAmount?.toString() ?? '') ?? 0.0);
-
-            final DateTime timestamp = record['created_at'] != null
-                ? (DateTime.tryParse(record['created_at'].toString()) ??
-                      DateTime.now())
-                : (record['timestamp'] != null
-                      ? (DateTime.tryParse(record['timestamp'].toString()) ??
-                            DateTime.now())
-                      : DateTime.now());
-
-            return TransactionModel(
-              id:
-                  record['id']?.toString() ??
-                  'tx_${timestamp.millisecondsSinceEpoch}',
-              title:
-                  record['title']?.toString() ??
-                  record['receiver_phone']?.toString() ??
-                  'Remittance Recipient',
-              subtitle:
-                  record['subtitle']?.toString() ??
-                  'Remittance to ${record['receiver_phone'] ?? 'Verified Account'}',
-              amount: amount,
-              amountBdt: amountBdt,
-              convertedAmount: convertedAmount,
-              currency: record['currency']?.toString() ?? 'BDT',
-              timestamp: timestamp,
-              type: type,
-              status: TransactionModel.parseStatus(record['status']),
-              cardId: record['card_id']?.toString() ?? 'card_wps',
-              avatarUrl: record['avatar_url']?.toString(),
-              iconCategory:
-                  record['icon_category']?.toString() ??
-                  (type == TransactionType.receive ? 'person' : 'send'),
-              stripeSessionId: record['stripe_payment_id']?.toString(),
-              // Both sides of the transfer: what the sender's bank was debited
-              // (source amount and currency) and what the recipient's bank was
-              // credited (the BDT amount plus any government incentive).
-              debitedAmount: type == TransactionType.send
-                  ? convertedAmount
-                  : (type == TransactionType.transfer ? amountBdt : null),
-              debitedCurrency: record['currency']?.toString() ?? 'BDT',
-              creditedAmount: amountBdt == null
-                  ? null
-                  : (amountBdt +
-                            (type == TransactionType.send
-                                ? (num.tryParse(
-                                        record['incentive_bdt']?.toString() ??
-                                            '',
-                                      ) ??
-                                      0)
-                                : 0))
-                        .toDouble(),
-              creditedCurrency: 'BDT',
-            );
-          }).toList();
+          return records.map(_transactionFromLedger).toList();
         }
       } catch (e) {
         debugPrint(
@@ -279,6 +189,64 @@ class SupabasePaymentRepository implements PaymentRepository {
       }
     }
     return _fallbackRepository.getTransactions(cardId: cardId);
+  }
+
+  /// One ledger leg as a history row.
+  ///
+  ///   deposit      a card payment arriving          -> received money
+  ///   withdrawal   money leaving to a recipient     -> sent money
+  ///   transfer     between two of your own cards    -> a transfer (no counterparty)
+  ///                to or from another person        -> by direction
+  static TransactionModel _transactionFromLedger(Map<String, dynamic> row) {
+    final direction = row['direction']?.toString();
+    final purpose = row['purpose']?.toString();
+    final hasCounterparty =
+        row['counterparty_id'] != null ||
+        (row['counterparty_phone']?.toString().isNotEmpty ?? false);
+
+    final TransactionType type;
+    if (purpose == 'deposit') {
+      type = TransactionType.receive;
+    } else if (purpose == 'withdrawal') {
+      type = TransactionType.send;
+    } else if (!hasCounterparty) {
+      type = TransactionType.transfer;
+    } else {
+      type = direction == 'credit'
+          ? TransactionType.receive
+          : TransactionType.send;
+    }
+
+    final raw = row['amount'];
+    final amount = raw is num
+        ? raw.toDouble()
+        : (double.tryParse(raw?.toString() ?? '') ?? 0.0);
+    final createdAt =
+        DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+        DateTime.now();
+    final description = row['description']?.toString() ?? '';
+    final counterparty = row['counterparty_name']?.toString() ?? '';
+
+    return TransactionModel(
+      id: row['id']?.toString() ?? 'tx_${createdAt.millisecondsSinceEpoch}',
+      title: counterparty.isNotEmpty
+          ? counterparty
+          : (description.isNotEmpty ? description : 'Transaction'),
+      subtitle: description,
+      amount: amount,
+      amountBdt: amount,
+      currency: row['currency']?.toString() ?? 'BDT',
+      timestamp: createdAt,
+      type: type,
+      status: TransactionModel.parseStatus(row['status']),
+      cardId: row['card_id']?.toString() ?? 'card_wps',
+      iconCategory: switch (type) {
+        TransactionType.receive => 'person',
+        TransactionType.transfer => 'transfer',
+        _ => 'send',
+      },
+      transferGroup: row['reference']?.toString(),
+    );
   }
 
   @override
@@ -413,6 +381,7 @@ class SupabasePaymentRepository implements PaymentRepository {
             Uri.parse(
               '$_backendBaseUrl/api/checkout/session-status/$sessionId',
             ),
+            headers: _authHeaders,
           )
           .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
@@ -427,6 +396,10 @@ class SupabasePaymentRepository implements PaymentRepository {
     return false;
   }
 
+  /// The server books a paid remittance, not the app. The Stripe webhook calls
+  /// settle_remittance(), which writes both ledger legs for the session exactly
+  /// once; the client has no write access to wallets or transactions. So there is
+  /// nothing to record here; the history simply appears once the webhook lands.
   @override
   Future<void> completePaymentRecord({
     required String cardId,
@@ -439,138 +412,16 @@ class SupabasePaymentRepository implements PaymentRepository {
     required double incentiveBdt,
     required String stripeSessionId,
   }) async {
-    final sb = _supabase;
-    if (sb != null) {
-      try {
-        // The backend webhook records the same session when it is running, so
-        // skip the insert and the wallet deduction if it already did.
-        if (stripeSessionId.isNotEmpty) {
-          final existing = await sb
-              .from('transactions')
-              .select('id')
-              .eq('stripe_payment_id', stripeSessionId)
-              .limit(1)
-              .timeout(const Duration(seconds: 4));
-          if (existing.isNotEmpty) {
-            debugPrint(
-              '[SupabasePaymentRepository] $stripeSessionId already recorded',
-            );
-            return;
-          }
-        }
-
-        final currentUserId = sb.auth.currentUser?.id;
-        final wallet = await _walletRowFor(sb, cardId);
-        final senderPhone = wallet?['phone']?.toString() ?? '+8801700000000';
-        final createdAtIso = DateTime.now().toUtc().toIso8601String();
-        final shared = <String, dynamic>{
-          'sender_id': currentUserId,
-          'receiver_id': null,
-          'sender_phone': senderPhone,
-          'receiver_phone': beneficiaryPhone,
-          'exchange_rate': exchangeRate,
-          'amount_bdt': amountBdt,
-          'status': 'completed',
-          'stripe_payment_id': stripeSessionId,
-          'transfer_group': stripeSessionId,
-          'icon_category': 'person',
-          'created_at': createdAtIso,
-        };
-
-        // Double entry: what left the sender's card, and what the recipient was
-        // credited. History then shows both sides of the same transfer.
-        await sb.from('transactions').insert([
-          {
-            ...shared,
-            'direction': 'debit',
-            'type': 'send',
-            'title': beneficiaryName,
-            'subtitle': 'Sent to $beneficiaryPhone',
-            'amount': sourceAmount,
-            'converted_amount': sourceAmount,
-            'currency': sourceCurrency,
-            'incentive_bdt': 0,
-            'card_id': cardId,
-          },
-          {
-            ...shared,
-            'direction': 'credit',
-            'type': 'receive',
-            'title': beneficiaryName,
-            'subtitle': 'Received from your $sourceCurrency card',
-            'amount': amountBdt + incentiveBdt,
-            'converted_amount': sourceAmount,
-            'currency': 'BDT',
-            'incentive_bdt': incentiveBdt,
-            'card_id': null,
-          },
-        ]);
-
-        // Deduct the card that actually paid, not whichever row came back first.
-        await _adjustWalletBalance(sb, wallet, -amountBdt);
-      } catch (e) {
-        debugPrint(
-          '[SupabasePaymentRepository] completePaymentRecord error: $e',
-        );
-      }
-    }
+    debugPrint(
+      '[SupabasePaymentRepository] $stripeSessionId is booked by the webhook; '
+      'nothing to write from the app',
+    );
   }
 
-  @override
-  Future<Map<String, dynamic>> executeCardTransfer({
-    required String fromCardId,
-    required String toCardId,
-    required double amountBdt,
-    required double vatOnCommission,
-    required double usdAmount,
-  }) async {
-    http.Response response;
-    try {
-      response = await _httpClient
-          .post(
-            Uri.parse('$_backendBaseUrl/api/checkout/card-transfer'),
-            headers: _authHeaders,
-            body: jsonEncode({
-              'fromCardId': fromCardId,
-              'toCardId': toCardId,
-              'amountBdt': amountBdt,
-              'vatOnCommission': vatOnCommission,
-              'usdAmount': usdAmount,
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
-    } catch (netErr) {
-      debugPrint(
-        '[SupabasePaymentRepository] card transfer network error: $netErr',
-      );
-      throw Exception(
-        'Payment Gateway Error: Unable to connect to payment server. Please ensure backend service is running.',
-      );
-    }
-
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      String errorMessage = 'Payment Gateway Error (${response.statusCode})';
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map && decoded['error'] != null) {
-          errorMessage = 'Payment Gateway Error: ${decoded['error']}';
-        }
-      } catch (_) {}
-      throw Exception(errorMessage);
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final checkoutUrl = data['checkoutUrl']?.toString() ?? '';
-    if (checkoutUrl.isEmpty ||
-        (!checkoutUrl.startsWith('http://') &&
-            !checkoutUrl.startsWith('https://'))) {
-      throw Exception(
-        'Payment Gateway Error: Malformed or missing Checkout URL returned by gateway.',
-      );
-    }
-    return data;
-  }
-
+  /// Moves money between two of the person's own cards through the
+  /// internal_transfer RPC: one atomic server-side move, no gateway and no fee.
+  /// A fresh idempotency key per attempt means a retried request cannot move the
+  /// money twice.
   @override
   Future<bool> executeInterCardTransfer({
     required String fromCardId,
@@ -578,112 +429,29 @@ class SupabasePaymentRepository implements PaymentRepository {
     required double amount,
   }) async {
     final sb = _supabase;
-    if (sb != null) {
-      try {
-        final from = await _walletRowFor(sb, fromCardId);
-        final to = await _walletRowFor(sb, toCardId);
-
-        // Both sides move. Previously only the WPS row was touched, so a
-        // transfer between the other two cards changed the wrong balance.
-        await _adjustWalletBalance(sb, from, -amount);
-        await _adjustWalletBalance(sb, to, amount);
-
-        final userId = sb.auth.currentUser?.id;
-        final createdAtIso = DateTime.now().toUtc().toIso8601String();
-        final stamp = DateTime.now().millisecondsSinceEpoch;
-        final group = '${fromCardId}_${toCardId}_$stamp';
-        final fromTitle = from?['title']?.toString() ?? fromCardId;
-        final toTitle = to?['title']?.toString() ?? toCardId;
-        final shared = <String, dynamic>{
-          'sender_id': userId,
-          'sender_phone': from?['phone']?.toString() ?? '+8801700000000',
-          'receiver_phone': to?['phone']?.toString() ?? '+8801700000000',
-          'amount_bdt': amount,
-          'converted_amount': amount,
-          'currency': 'BDT',
-          'status': 'completed',
-          'icon_category': 'transfer',
-          'transfer_group': group,
-          'created_at': createdAtIso,
-        };
-
-        await sb.from('transactions').insert([
-          {
-            ...shared,
-            'direction': 'debit',
-            'type': 'transfer',
-            'title': toTitle,
-            'subtitle': 'Transfer to $toTitle',
-            'amount': amount,
-            'card_id': fromCardId,
-          },
-          {
-            ...shared,
-            'direction': 'credit',
-            'type': 'receive',
-            'title': fromTitle,
-            'subtitle': 'Transfer from $fromTitle',
-            'amount': amount,
-            'card_id': toCardId,
-          },
-        ]);
-      } catch (e) {
-        debugPrint(
-          '[SupabasePaymentRepository] executeInterCardTransfer error fallback: $e',
-        );
-      }
+    if (sb == null || sb.auth.currentUser == null) {
+      throw Exception('Sign in to move money between your cards.');
     }
-
-    return _fallbackRepository.executeInterCardTransfer(
-      fromCardId: fromCardId,
-      toCardId: toCardId,
-      amount: amount,
-    );
-  }
-
-  /// The wallet row backing [cardId]. Falls back to the single legacy row for
-  /// databases created before wallets had one row per card.
-  Future<Map<String, dynamic>?> _walletRowFor(
-    SupabaseClient sb,
-    String cardId,
-  ) async {
-    try {
-      final rows = await sb
-          .from('wallets')
-          .select()
-          .timeout(const Duration(seconds: 4));
-      if (rows.isEmpty) return null;
-      for (final row in rows) {
-        if (row['card_id']?.toString() == cardId) return row;
-      }
-      final hasCardIds = rows.any((r) => r['card_id'] != null);
-      return hasCardIds ? null : rows.first;
-    } catch (e) {
-      debugPrint('[SupabasePaymentRepository] wallet lookup failed: $e');
-      return null;
-    }
-  }
-
-  /// Adds [delta] to that wallet row's balance, never below zero.
-  Future<void> _adjustWalletBalance(
-    SupabaseClient sb,
-    Map<String, dynamic>? wallet,
-    double delta,
-  ) async {
-    if (wallet == null) return;
-    final raw = wallet['balance_bdt'];
-    final current = raw is num
-        ? raw.toDouble()
-        : (double.tryParse(raw?.toString() ?? '') ?? 0.0);
-    final updated = (current + delta).clamp(0.0, double.infinity);
     try {
       await sb
-          .from('wallets')
-          .update({'balance_bdt': updated})
-          .eq('id', wallet['id'])
-          .timeout(const Duration(seconds: 4));
-    } catch (e) {
-      debugPrint('[SupabasePaymentRepository] balance update failed: $e');
+          .rpc(
+            'internal_transfer',
+            params: {
+              'p_from_card': fromCardId,
+              'p_to_card': toCardId,
+              'p_amount': amount,
+              'p_idempotency_key':
+                  'swap-${DateTime.now().microsecondsSinceEpoch}',
+            },
+          )
+          .timeout(const Duration(seconds: 8));
+      return true;
+    } on PostgrestException catch (e) {
+      // The function's own messages ("That card does not have enough balance")
+      // are written to be shown as they are.
+      throw Exception(e.message);
+    } on TimeoutException {
+      throw Exception('The server took too long to answer. Please try again.');
     }
   }
 
@@ -763,10 +531,10 @@ class SupabasePaymentRepository implements PaymentRepository {
         );
       }
 
-      // 2. Fetch live full_name from Supabase wallets record
+      // 2. Fetch the saved full name from the person's profile
       try {
         final records = await sb
-            .from('wallets')
+            .from('profiles')
             .select('full_name')
             .timeout(const Duration(seconds: 4));
 

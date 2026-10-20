@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
+import { requireAuth } from '../supabaseUser.js';
 
 const router = Router();
 
-// In-memory persistent state for the backend service session
-let cards = [
+// Demo catalogue for the cards screen. Read-only: real balances live in the
+// Supabase ledger (wallets), and card swaps go through the internal_transfer RPC.
+const cards = [
   {
     id: 'card_wps',
     title: 'WPS Payroll Card',
@@ -36,7 +38,7 @@ let cards = [
   },
 ];
 
-let beneficiaries = [
+const beneficiaries = [
   {
     id: 'ben_1',
     name: 'Elizabeth',
@@ -99,7 +101,7 @@ let beneficiaries = [
   },
 ];
 
-let transactions = [
+const transactions = [
   {
     id: 'tx_1',
     title: 'Google',
@@ -149,62 +151,26 @@ let transactions = [
 /**
  * GET /api/payment/cards
  */
-router.get('/cards', (_req: Request, res: Response) => {
+router.get('/cards', requireAuth, (_req: Request, res: Response) => {
   res.json({ cards });
 });
 
 /**
  * GET /api/payment/beneficiaries
  */
-router.get('/beneficiaries', (_req: Request, res: Response) => {
+router.get('/beneficiaries', requireAuth, (_req: Request, res: Response) => {
   res.json({ beneficiaries });
 });
 
 /**
  * GET /api/payment/transactions
  */
-router.get('/transactions', (req: Request, res: Response) => {
+router.get('/transactions', requireAuth, (req: Request, res: Response) => {
   const cardId = req.query.cardId as string | undefined;
   if (cardId) {
     return res.json({ transactions: transactions.filter((tx) => tx.card_id === cardId) });
   }
   res.json({ transactions });
-});
-
-/**
- * POST /api/payment/transfer-cards
- */
-router.post('/transfer-cards', (req: Request, res: Response) => {
-  const { fromCardId, toCardId, amount } = req.body;
-  const fromIndex = cards.findIndex((c) => c.id === fromCardId);
-  const toIndex = cards.findIndex((c) => c.id === toCardId);
-
-  if (fromIndex === -1 || toIndex === -1) {
-    return res.status(404).json({ success: false, error: 'Card not found' });
-  }
-
-  if (cards[fromIndex].balance < amount) {
-    return res.status(400).json({ success: false, error: 'Insufficient funds' });
-  }
-
-  cards[fromIndex].balance -= amount;
-  cards[toIndex].balance += amount;
-
-  const transferTx = {
-    id: `tx_${Date.now()}`,
-    title: 'Inter-Card Swap',
-    subtitle: `${cards[fromIndex].title} → ${cards[toIndex].title}`,
-    amount,
-    currency: 'BDT',
-    timestamp: new Date().toISOString(),
-    type: 'transfer',
-    card_id: fromCardId,
-    icon_category: 'transfer',
-  };
-
-  transactions.unshift(transferTx);
-
-  res.json({ success: true, transaction: transferTx, cards });
 });
 
 export default router;

@@ -6,6 +6,7 @@ import '../../l10n/app_strings.dart';
 import '../../theme/app_colors.dart';
 import 'controllers/notice_controller.dart';
 import 'models/notice_model.dart';
+import '../../widget/ink_surface.dart';
 
 /// The Notices tab: the full feed as rich cards.
 ///
@@ -168,36 +169,34 @@ class _NoticeViewState extends State<NoticeView> {
     required bool selected,
     required VoidCallback onTap,
   }) {
-    return InkWell(
+    return InkSurface(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.royalBlue : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 13,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: selected ? AppColors.royalBlue : Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 13,
+            color: selected ? AppColors.cloudDancer : AppColors.royalBlue,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
               color: selected ? AppColors.cloudDancer : AppColors.royalBlue,
+              fontSize: 11,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
             ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? AppColors.cloudDancer : AppColors.royalBlue,
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -496,11 +495,7 @@ class _Thumbnail extends StatelessWidget {
   final double? width;
   final double? height;
 
-  const _Thumbnail({
-    required this.url,
-    this.width,
-    this.height,
-  });
+  const _Thumbnail({required this.url, this.width, this.height});
 
   @override
   Widget build(BuildContext context) {
@@ -528,17 +523,10 @@ class _Thumbnail extends StatelessWidget {
     );
 
     if (width != null && height != null) {
-      return SizedBox(
-        width: width,
-        height: height,
-        child: imageWidget,
-      );
+      return SizedBox(width: width, height: height, child: imageWidget);
     }
 
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: imageWidget,
-    );
+    return AspectRatio(aspectRatio: 16 / 9, child: imageWidget);
   }
 }
 
