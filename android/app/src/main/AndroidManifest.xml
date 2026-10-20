@@ -9,7 +9,7 @@
          justification. -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <application
-        android:label="probashi_guard"
+        android:label="Probashi Guard"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
