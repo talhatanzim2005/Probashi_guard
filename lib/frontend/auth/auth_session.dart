@@ -66,6 +66,11 @@ Future<void> prepareSignIn() => _AnonymousDataClaim.prepare();
 /// transfer is addressed to a number, so until one is claimed the person can
 /// neither be paid nor send anything.
 ///
+/// Someone who chose Skip on that screen is not sent back to it: the choice is
+/// remembered on this phone for that account (see [skipPhoneSetup]), so the
+/// next launch opens the app. The number stays one tap away in Profile > Update
+/// Phone Number, and sending money stays locked until one is verified.
+///
 /// [fade] cross-fades in, for the splash, instead of the usual slide.
 Future<void> goToApp(BuildContext context, {bool fade = false}) async {
   final navigator = Navigator.of(context);
@@ -74,7 +79,8 @@ Future<void> goToApp(BuildContext context, {bool fade = false}) async {
   await _AnonymousDataClaim.redeem();
   // The profile check goes first: it makes sure an older account has its
   // profile row, which the name lookup may need.
-  final needsPhone = await _profileNeedsPhone();
+  final needsPhone =
+      await _profileNeedsPhone() && !await _PhonePrompt.wasSkipped();
   await _adoptAccountName();
   unawaited(PaymentController.instance.reloadAfterSignIn());
   navigator.pushAndRemoveUntil(
@@ -91,6 +97,15 @@ void enterAppShell(BuildContext context) {
   Navigator.of(
     context,
   ).pushAndRemoveUntil(_appRoute(const MainNavigationShell()), (_) => false);
+}
+
+/// "Skip for now" on [PhoneSetupView]: remembers the choice for this account
+/// on this phone, then opens the app. Later launches go straight in instead of
+/// asking again. Logging out forgets it, so the next login asks once.
+Future<void> skipPhoneSetup(BuildContext context) async {
+  await _PhonePrompt.markSkipped();
+  if (!context.mounted) return;
+  enterAppShell(context);
 }
 
 Route<void> _appRoute(Widget page, {bool fade = false}) {
@@ -135,6 +150,8 @@ Future<bool> _profileNeedsPhone() async {
 /// person to log in on it starts clean. The language choice stays.
 Future<void> signOut(BuildContext context) async {
   final navigator = Navigator.of(context);
+  // Read before the session goes, so the right account's Skip is forgotten.
+  final userId = _client?.auth.currentUser?.id;
   try {
     // The session is dropped locally before the server is told, so being
     // offline still logs the person out.
@@ -148,6 +165,7 @@ Future<void> signOut(BuildContext context) async {
     PaymentController.instance.resetForSignOut(),
     DocumentAnalysisRepository.clearDeviceCache(),
     _AnonymousDataClaim.forget(),
+    _PhonePrompt.forget(userId),
   ]);
   navigator.pushAndRemoveUntil(
     MaterialPageRoute(builder: (_) => const LoginView()),
@@ -236,6 +254,48 @@ abstract final class _AnonymousDataClaim {
       await prefs.remove(_tokenKey);
     } catch (e) {
       debugPrint('[auth] could not clear the anonymous data claim: $e');
+    }
+  }
+}
+
+/// Whether this account already chose "Skip for now" on the phone screen.
+///
+/// Kept per account on the device, so one person skipping does not hide the
+/// prompt from another who logs in on the same phone. A storage failure never
+/// blocks anything: the person is simply asked again.
+abstract final class _PhonePrompt {
+  static String _key(String userId) => 'auth_phone_setup_skipped_$userId';
+
+  static Future<bool> wasSkipped() async {
+    final userId = _client?.auth.currentUser?.id;
+    if (userId == null) return false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_key(userId)) ?? false;
+    } catch (e) {
+      debugPrint('[auth] could not read the phone-skip choice: $e');
+      return false;
+    }
+  }
+
+  static Future<void> markSkipped() async {
+    final userId = _client?.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_key(userId), true);
+    } catch (e) {
+      debugPrint('[auth] could not save the phone-skip choice: $e');
+    }
+  }
+
+  static Future<void> forget(String? userId) async {
+    if (userId == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_key(userId));
+    } catch (e) {
+      debugPrint('[auth] could not clear the phone-skip choice: $e');
     }
   }
 }

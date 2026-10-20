@@ -20,7 +20,9 @@ import 'phone_verifier.dart';
 /// The number and the code are both on screen at once, typed on the phone's
 /// own numeric keyboard. Both fields filter to the digits 0-9 (a Bangla
 /// keyboard's ০-৯ are converted), the number is capped at its country's length
-/// (11 digits in Bangladesh), and the code submits itself on its last digit.
+/// (10 digits in Bangladesh, after the +880 shown beside it; a leading 0 is
+/// dropped as it is typed or pasted), and the code submits itself on its last
+/// digit.
 /// Verifying without having sent a code first sends one and checks it in a
 /// single step, which is how a Firebase test number and its fixed code are
 /// matched. Test numbers send no SMS, so they cost nothing; see
@@ -367,6 +369,22 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
           inputFormatters: [
             const BanglaDigitsFormatter(),
             FilteringTextInputFormatter.digitsOnly,
+            // After +880 the trunk 0 is wrong (+88001...), so 01712345678
+            // typed, pasted or autofilled becomes 1712345678. This runs
+            // before the length cap so a pasted 11-digit number still fits.
+            TextInputFormatter.withFunction((oldValue, newValue) {
+              final stripped = _country.stripTrunkZero(newValue.text);
+              if (stripped == newValue.text) return newValue;
+              final cut = newValue.text.length - stripped.length;
+              return TextEditingValue(
+                text: stripped,
+                selection: TextSelection.collapsed(
+                  offset: (newValue.selection.end - cut)
+                      .clamp(0, stripped.length)
+                      .toInt(),
+                ),
+              );
+            }),
             LengthLimitingTextInputFormatter(_country.maxDigits),
           ],
           onChanged: _onNumberChanged,
@@ -452,7 +470,7 @@ class _PhoneSetupViewState extends State<PhoneSetupView> {
         children: [
           Center(
             child: TextButton(
-              onPressed: _isBusy ? null : () => enterAppShell(context),
+              onPressed: _isBusy ? null : () => skipPhoneSetup(context),
               child: Text(
                 s.authPhoneSkip,
                 style: TextStyle(

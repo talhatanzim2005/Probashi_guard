@@ -1,10 +1,15 @@
 /// A country a Probashi Guard user can verify a mobile number in, and the
 /// shape of a local mobile number there.
 ///
-/// Numbers are typed the way people write them at home — 01712345678 in
-/// Bangladesh, 0501234567 in Saudi Arabia — and only turned into E.164 when
-/// they leave the screen. [minDigits] and [maxDigits] cap what the keypad
-/// accepts, so a Bangladeshi number cannot run past its 11 digits.
+/// The field shows the country's dial code (+880) in front of what is typed,
+/// so what is typed is the national number without the trunk 0: 1712345678 in
+/// Bangladesh, 501234567 in Saudi Arabia. [minDigits] and [maxDigits] count
+/// those national digits, so a Bangladeshi number cannot run past its 10.
+///
+/// People still write numbers the way they do at home (01712345678), and
+/// autofill and paste hand them over that way. [stripTrunkZero] drops that
+/// leading 0, so both forms end up the same and only become E.164 when they
+/// leave the screen.
 class PhoneCountry {
   /// ISO 3166 code; also the key for the country's name in AppStrings.
   final String iso;
@@ -16,12 +21,18 @@ class PhoneCountry {
   final int minDigits;
   final int maxDigits;
 
-  /// True where local numbers carry a leading 0 that E.164 drops: 01712345678
-  /// in Bangladesh is +8801712345678, not +88001712345678.
+  /// True where local numbers are written with a leading 0 that E.164 drops:
+  /// 01712345678 in Bangladesh is +8801712345678, not +88001712345678. The 0
+  /// is never part of [minDigits]/[maxDigits]; it is removed as it is typed.
   final bool trunkZero;
 
-  /// A typical local mobile number, shown as the field's hint.
+  /// A typical national mobile number (no trunk 0), shown as the field's hint.
   final String example;
+
+  /// Regular expression a valid national mobile number must match, where that
+  /// is stricter than its length. Null means length alone decides. Kept as a
+  /// string because a RegExp cannot sit in a const constructor.
+  final String? nationalPattern;
 
   const PhoneCountry({
     required this.iso,
@@ -31,24 +42,34 @@ class PhoneCountry {
     required this.maxDigits,
     required this.trunkZero,
     required this.example,
+    this.nationalPattern,
   });
 
-  /// "11", or "10-11" where both lengths are in use.
+  /// "10", or "9-10" where both lengths are in use.
   String get lengthLabel =>
       minDigits == maxDigits ? '$maxDigits' : '$minDigits-$maxDigits';
 
+  /// [digits] without the trunk 0 people write at home, where this country
+  /// has one: 01712345678 becomes 1712345678. Anything else is returned as is.
+  String stripTrunkZero(String digits) =>
+      trunkZero && digits.startsWith('0') ? digits.substring(1) : digits;
+
+  /// True for a national number, typed with or without its trunk 0.
   bool isValidLocal(String digits) {
-    if (!RegExp(r'^[0-9]+$').hasMatch(digits)) return false;
-    if (digits.length < minDigits || digits.length > maxDigits) return false;
-    return !trunkZero || digits.startsWith('0');
+    final national = stripTrunkZero(digits);
+    if (!RegExp(r'^[0-9]+$').hasMatch(national)) return false;
+    if (national.length < minDigits || national.length > maxDigits) {
+      return false;
+    }
+    final pattern = nationalPattern;
+    return pattern == null || RegExp(pattern).hasMatch(national);
   }
 
   /// The number in the form Firebase and the server expect, or null when
   /// [isValidLocal] would refuse it.
   String? toE164(String digits) {
     if (!isValidLocal(digits)) return null;
-    final national = trunkZero ? digits.substring(1) : digits;
-    return '+$dialCode$national';
+    return '+$dialCode${stripTrunkZero(digits)}';
   }
 
   /// Bangladesh first: it is where every recipient is, and where most senders
@@ -58,28 +79,30 @@ class PhoneCountry {
       iso: 'BD',
       flag: '🇧🇩',
       dialCode: '880',
-      minDigits: 11,
-      maxDigits: 11,
+      minDigits: 10,
+      maxDigits: 10,
       trunkZero: true,
-      example: '01712345678',
+      example: '1712345678',
+      // Mobile operators use 013-019; 1[3-9] then eight more digits.
+      nationalPattern: r'^1[3-9][0-9]{8}$',
     ),
     PhoneCountry(
       iso: 'SA',
       flag: '🇸🇦',
       dialCode: '966',
-      minDigits: 10,
-      maxDigits: 10,
+      minDigits: 9,
+      maxDigits: 9,
       trunkZero: true,
-      example: '0501234567',
+      example: '501234567',
     ),
     PhoneCountry(
       iso: 'AE',
       flag: '🇦🇪',
       dialCode: '971',
-      minDigits: 10,
-      maxDigits: 10,
+      minDigits: 9,
+      maxDigits: 9,
       trunkZero: true,
-      example: '0501234567',
+      example: '501234567',
     ),
     PhoneCountry(
       iso: 'QA',
@@ -112,10 +135,10 @@ class PhoneCountry {
       iso: 'MY',
       flag: '🇲🇾',
       dialCode: '60',
-      minDigits: 10,
-      maxDigits: 11,
+      minDigits: 9,
+      maxDigits: 10,
       trunkZero: true,
-      example: '0123456789',
+      example: '123456789',
     ),
     PhoneCountry(
       iso: 'SG',
