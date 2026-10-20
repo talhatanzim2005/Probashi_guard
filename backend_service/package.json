@@ -9,12 +9,14 @@
     "dev": "tsx watch src/server.ts",
     "seed:notices": "tsx scripts/seed_notices.ts",
     "seed:faqs": "tsx scripts/seed_ai_faqs.ts",
-    "test": "tsc && node --import ./dist/test/setup.js --test dist/test/server.test.js dist/test/documents.test.js dist/test/analysisToken.test.js dist/test/testPhones.test.js dist/test/faqParser.test.js dist/test/openrouter.test.js dist/test/chat.test.js dist/test/embeddings.test.js",
+    "test": "tsc && node --import ./dist/test/setup.js --test dist/test/server.test.js dist/test/documents.test.js dist/test/analysisToken.test.js dist/test/testPhones.test.js dist/test/faqParser.test.js dist/test/openrouter.test.js dist/test/chat.test.js dist/test/embeddings.test.js dist/test/pricing.test.js dist/test/rateLimit.test.js dist/test/supabaseUser.test.js dist/test/payments.integration.test.js dist/test/phoneBinding.integration.test.js dist/test/documents.integration.test.js dist/test/ledger.sql.test.js",
     "pentest:dos": "tsx scripts/pentest_dos.ts",
     "pentest:auth": "tsx scripts/pentest_auth.ts",
     "pentest:rls": "tsx scripts/pentest_supabase_rls.ts",
     "pentest:arbitrage": "tsx scripts/pentest_stripe_arbitrage.ts",
-    "pentest:mobile": "tsx scripts/pentest_mobile_forensics.ts"
+    "pentest:mobile": "tsx scripts/pentest_mobile_forensics.ts",
+    "test:hermetic": "tsc && node --test dist/test/pricing.test.js dist/test/rateLimit.test.js dist/test/supabaseUser.test.js dist/test/payments.integration.test.js dist/test/phoneBinding.integration.test.js dist/test/documents.integration.test.js dist/test/ledger.sql.test.js",
+    "e2e:live": "tsx scripts/e2e_live_smoke.ts"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +34,7 @@
     "stripe": "^23.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@trigger.dev/build": "4.7.4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

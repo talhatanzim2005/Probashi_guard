@@ -14,9 +14,9 @@ The following values are placeholders or dynamic runtime parameters and must be 
 
 | Field | Current Value | What to Set |
 |---|---|---|
-| `STRIPE_SECRET_KEY` | `sk_test_51URCH...` (Configured) | Test key is active; switch to live key (`sk_live_...`) for production. |
-| `STRIPE_TEST_ACCOUNT_ID` | `acct_1URCKREQ1XrhmDDe` (Configured) | Connected test account destination; update to production account for live remittances. |
-| `TRIGGER_SECRET_KEY` | `tr_dev_sk_...` (Configured) | Dev key is active; switch to production Trigger.dev secret key for prod. |
+| `STRIPE_SECRET_KEY` | *(set in `backend_service/.env`)* | Test key is active; switch to a live key for production. |
+| `STRIPE_TEST_ACCOUNT_ID` | *(set in `backend_service/.env`)* | Connected test account destination; update to production account for live remittances. |
+| `TRIGGER_SECRET_KEY` | *(set in `backend_service/.env`)* | Dev key is active; switch to production Trigger.dev secret key for prod. |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_...` | Set from `stripe listen --forward-to localhost:3000/api/webhooks/stripe` or Stripe Dashboard. |
 | `success_url` | `${origin}/success?session_id={CHECKOUT_SESSION_ID}` | Your actual post-payment success page URL in production. Keep `{CHECKOUT_SESSION_ID}` template. |
 | `cancel_url` | `${origin}/cancel` | Your actual cancel/return page URL in production. |
